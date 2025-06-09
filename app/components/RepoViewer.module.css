@@ -1,0 +1,524 @@
+.container {
+  width: 100%;
+  margin: 0 auto;
+  padding: 16px 0 32px;
+  box-sizing: border-box;
+  min-height: 100vh;
+  transition: all 0.3s ease;
+  overflow-x: hidden;
+  max-width: 100%;
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+  padding: 16px 0;
+  border-bottom: 1px solid #E5E7EB;
+  margin-bottom: 16px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+  min-height: 60px;
+  box-sizing: border-box;
+}
+
+.title {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.desktopLayout {
+  width: 100%;
+}
+
+.mobileLayout {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+  padding: 8px;
+  background-color: white;
+}
+
+.panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  border-radius: 8px;
+  overflow: hidden;
+  height: 100%;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.panelContainer {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.panelHeader {
+  padding: 20px 20px 10px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.panelTitle {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.panelContent {
+  flex: 1;
+  overflow: auto;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.filePath {
+  font-size: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.actionButton {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+/* Responsive styles */
+@media (max-width: 768px) {
+  .desktopLayout {
+    display: none;
+  }
+  
+  .mobileLayout {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    max-width: 100%;
+    gap: 16px;
+    padding: 0 8px;
+    box-sizing: border-box;
+    overflow-x: hidden;
+  }
+  
+  .container {
+    padding: 0;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    overflow-x: hidden;
+  }
+  
+  .header {
+    padding: 12px 16px;
+    text-align: left;
+    width: 100%;
+    max-width: 100%;
+    margin: 0 0 8px 0;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+    box-sizing: border-box;
+  }
+  
+  .title {
+    font-size: 16px;
+    line-height: 1.3;
+    text-align: left;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 100%;
+  }
+  
+  .panelContainer {
+    margin-bottom: 12px;
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    width: 100%;
+  }
+  
+  .panelHeader {
+    padding: 12px;
+    border-bottom: 1px solid #E5E7EB;
+    width: 100%;
+    box-sizing: border-box;
+  }
+  
+  .panelTitle {
+    font-size: 14px;
+    font-weight: 600;
+  }
+}
+
+/* Table layout for desktop */
+.tableLayout {
+  display: table;
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0 0;
+}
+
+.tableRow {
+  display: table-row;
+}
+
+.tableCell {
+  display: table-cell;
+  vertical-align: top;
+}
+
+.leftCell {
+  width: 50%;
+  padding-right: 10px;
+}
+
+.rightCell {
+  width: 50%;
+  padding-left: 10px;
+}
+
+@media (max-width: 768px) {
+  .tableLayout, .tableRow, .tableCell {
+    display: block;
+    width: 100%;
+    padding: 0;
+  }
+}
+
+.mainContent {
+  display: grid;
+  gap: 16px;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+/* Mobile row */
+.mobileRow {
+  display: flex;
+  width: 100%;
+  min-height: 250px;
+  height: auto;
+  max-height: 450px;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid #E5E7EB;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  margin-bottom: 16px;
+  flex-direction: column;
+  box-sizing: border-box;
+}
+
+/* Grid layout for two rows */
+.twoRowLayout {
+  display: grid;
+  grid-template-rows: 1fr 1fr; /* Equal sized rows */
+  gap: 16px; /* Space between rows */
+  width: 100%;
+  height: calc(200vh - 360px); /* Double the current height calculation */
+  min-height: 1400px; /* Double the minimum height */
+  box-sizing: border-box;
+  overflow: auto; /* Changed from hidden to auto to handle larger content */
+  margin: 0 auto;
+}
+
+/* Top row with directory and chat */
+.topRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  grid-row: 1;
+  width: 100%;
+  max-width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+/* Bottom row styles */
+.bottomRow {
+  grid-row: 2;
+  width: 100%;
+  max-width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Fixed panel with directory or chat */
+.fixedPanel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--panel-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  overflow: hidden;
+  height: 100%;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.darkFixedPanel {
+  border-color: #2D3748;
+  background-color: #1E293B;
+}
+
+/* Panel header */
+.fixedPanelHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid #E5E7EB;
+  background-color: white;
+  height: 48px;
+  box-sizing: border-box;
+}
+
+.darkFixedPanelHeader {
+  border-bottom-color: #2D3748;
+  background-color: #1E293B;
+}
+
+/* Panel content */
+.fixedPanelContent {
+  flex: 1;
+  overflow: auto;
+  height: 100%;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  position: relative;
+}
+
+/* For mobile */
+@media (max-width: 768px) {
+  .twoRowLayout {
+    flex-direction: column;
+    overflow: visible;
+  }
+  
+  .topRow, .bottomRow {
+    height: auto;
+    min-height: 250px;
+    max-height: 450px;
+    width: 100%;
+  }
+  
+  .mobileLayout {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    max-width: 100%;
+    padding: 0 8px;
+    box-sizing: border-box;
+    overflow-x: hidden;
+    gap: 16px;
+    align-items: center;
+  }
+  
+  .mobileRow {
+    min-height: 250px;
+    max-height: 450px;
+    border-radius: 8px;
+    overflow: hidden;
+    width: 100%;
+    max-width: 100%;
+    border: 1px solid #E5E7EB;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    box-sizing: border-box;
+    width: calc(100% - 16px);
+  }
+  
+  .mobileRow:nth-child(1) {
+    flex: 1;
+    order: 1;
+    height: auto;
+    min-height: 250px;
+    width: 100%;
+    width: calc(100% - 16px);
+  }
+  
+  .mobileRow:nth-child(2) {
+    flex: 1;
+    order: 2;
+    height: auto;
+    min-height: 250px;
+    width: 100%;
+    width: calc(100% - 16px);
+  }
+  
+  .mobileRow:nth-child(3) {
+    flex: 1;
+    order: 3;
+    height: auto;
+    min-height: 250px;
+    width: 100%;
+    width: calc(100% - 16px);
+  }
+  
+  .fixedPanel {
+    border-radius: 8px;
+    border: 1px solid #E5E7EB;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    width: 100%;
+    overflow: hidden;
+    background-color: white;
+    box-sizing: border-box;
+    max-width: 100%;
+  }
+  
+  .fixedPanelContent {
+    padding: 12px;
+    flex: 1;
+    overflow: auto;
+    -webkit-overflow-scrolling: touch;
+    font-size: 14px;
+    height: 100%;
+    width: 100%;
+    box-sizing: border-box;
+  }
+  
+  .fixedPanelHeader {
+    padding: 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid #E5E7EB;
+    background-color: #F9FAFB;
+    flex-shrink: 0;
+    width: 100%;
+    box-sizing: border-box;
+  }
+  
+  .filePath {
+    font-size: 13px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 80%;
+  }
+}
+
+/* Small mobile devices */
+@media (max-width: 480px) {
+  .mobileRow {
+    min-height: 200px;
+    max-height: 400px;
+  }
+  
+  .mobileRow:nth-child(1) {
+    min-height: 200px;
+  }
+  
+  .mobileRow:nth-child(2) {
+    min-height: 200px;
+  }
+  
+  .mobileRow:nth-child(3) {
+    min-height: 200px;
+  }
+  
+  .header {
+    padding: 8px 12px;
+    gap: 4px;
+  }
+  
+  .title {
+    font-size: 15px;
+  }
+  
+  .panelTitle {
+    font-size: 13px;
+  }
+  
+  .fixedPanelHeader {
+    padding: 8px 12px;
+  }
+  
+  .fixedPanelContent {
+    padding: 8px;
+    font-size: 13px;
+  }
+  
+  .actionButton {
+    width: 28px;
+    height: 28px;
+  }
+}
+
+.contentContainer {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* Ensure all panels have consistent width constraints */
+.panelOuter {
+  height: 100%;
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  min-width: 0;
+}
+
+/* Ensure the file viewer fills its container */
+.fileViewerContainer {
+  flex: 1;
+  width: 100%;
+  height: 100%;
+  min-height: 200px;
+  overflow: auto;
+  display: flex;
+  box-sizing: border-box;
+}
+
+/* Fullscreen section */
+.fullscreenSection {
+  height: calc(100vh - 100px);
+  width: 100%;
+  max-width: 100vw;
+  margin: 0 auto;
+  overflow: hidden;
+  background-color: var(--panel-bg);
+  border-radius: 8px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  display: flex;
+  flex-direction: column;
+}
+
+.iconButton {
+  transition: background-color 0.2s ease;
+}
+
+.iconButton:hover {
+  background-color: rgba(175, 184, 193, 0.2) !important;
+} 

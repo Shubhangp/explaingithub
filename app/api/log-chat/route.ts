@@ -1,0 +1,202 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/app/auth/auth-options'
+import supabase from '@/app/lib/supabase'
+
+export async function POST(request: NextRequest) {
+  try {
+    console.log('log-chat API called')
+
+    // Extract data from the request
+    const body = await request.json()
+    const { question, conversationId, action = 'create' } = body
+    const questionLength = question?.length || 0
+    console.log("call:", body.call);
+    console.log("action:", action, "conversationId:", conversationId);
+
+    // Get session
+    const session = await getServerSession(authOptions)
+    let email = session?.user?.email || body.email
+
+    // Check if we have an anonymousId in the request
+    const anonymousId = body.anonymousId || request.headers.get('x-anonymous-id')
+
+    // If no email but we have anonymousId, create a pseudo-email
+    if (!email && anonymousId) {
+      email = `anonymous_${anonymousId}@temp.example.com`
+    }
+
+    // Log detailed request information for debugging
+    console.log('Full request data:', {
+      bodyEmail: body.email,
+      sessionEmail: session?.user?.email,
+      anonymousId,
+      question: questionLength > 100 ? question.substring(0, 100) + '...' : question,
+      repo: body.repo,
+      owner: body.owner,
+      combinedEmail: email,
+      action,
+      conversationId
+    })
+
+    // Check if we have the required data to save
+    if (!email) {
+      console.warn('Missing email - cannot save chat to database')
+      return NextResponse.json({ success: false, error: 'Missing email' })
+    }
+
+    if (!question) {
+      console.warn('Missing question - cannot save chat to database')
+      return NextResponse.json({ success: false, error: 'Missing question' })
+    }
+
+    // Check if we have repo information
+    if (!body.owner || !body.repo) {
+      console.warn('Missing owner or repo - cannot save chat to database')
+      return NextResponse.json({ success: false, error: 'Missing repository information' })
+    }
+
+    try {
+      let result;
+
+      // Handle different actions
+      if (action === 'update' && conversationId) {
+        // UPDATE EXISTING CONVERSATION BY ID
+        console.log('Updating existing conversation with ID:', conversationId);
+
+        // First verify the conversation belongs to this user
+        const { data: existingConversation, error: verifyError } = await supabase
+          .from('conversations')
+          .select('id, user_id')
+          .eq('id', conversationId)
+          .single();
+
+        if (verifyError || !existingConversation) {
+          console.error('Conversation not found or access denied:', verifyError);
+          return NextResponse.json({ success: false, error: 'Conversation not found' });
+        }
+
+        if (existingConversation.user_id !== email) {
+          console.error('User does not own this conversation');
+          return NextResponse.json({ success: false, error: 'Access denied' });
+        }
+
+        // Update the existing conversation
+        result = await supabase
+          .from('conversations')
+          .update({
+            title: question.length > 50 ? `${question.substring(0, 47)}...` : question,
+            question: question,
+            content: body.response || null, // Store the AI response if provided
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', conversationId)
+          .select('id');
+
+        if (result.error) {
+          console.error('Failed to update conversation:', result.error);
+          return NextResponse.json({ success: false, error: 'Failed to update conversation' });
+        }
+
+        console.log('Successfully updated conversation:', conversationId);
+        return NextResponse.json({
+          success: true,
+          action: 'updated',
+          id: conversationId
+        });
+
+      } else {
+        // CREATE NEW CONVERSATION (default behavior)
+        console.log('Creating new conversation');
+
+        const newConversation = {
+          user_id: email,
+          provider: body.provider || 'github',
+          owner: body.owner,
+          repo: body.repo,
+          // title: question.length > 50 ? `${question.substring(0, 47)}...` : question,
+          question: question,
+          content: body.response || null,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        };
+
+        result = await supabase
+          .from('conversations')
+          .insert(newConversation)
+          .select('id');
+
+        if (result.error) {
+          console.error('Failed to create conversation:', result.error);
+          return NextResponse.json({ success: false, error: 'Failed to create conversation' });
+        }
+
+        const newConversationId = result.data?.[0]?.id;
+        console.log('Successfully created new conversations 135:', newConversationId);
+
+        // Remove the duplicate AI response insertion
+        // No second insert needed - everything is in one row
+
+        return NextResponse.json({
+          success: true,
+          action: 'created',
+          id: newConversationId
+        });
+      }
+
+    } catch (dbError) {
+      console.error('Database error:', dbError);
+      return NextResponse.json({ success: false, error: 'Database error' });
+    }
+  } catch (error) {
+    console.error('Error in log-chat API:', error)
+    return NextResponse.json({ success: false, error: 'Failed to log chat' }, { status: 500 })
+  }
+}
+
+// Helper function to get conversation history for a repository
+export async function GET(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const owner = searchParams.get('owner');
+    const repo = searchParams.get('repo');
+    const provider = searchParams.get('provider') || 'github';
+
+    // Get session
+    const session = await getServerSession(authOptions);
+    const email = session?.user?.email;
+
+    if (!email) {
+      return NextResponse.json({ success: false, error: 'Authentication required' });
+    }
+
+    if (!owner || !repo) {
+      return NextResponse.json({ success: false, error: 'Missing repository information' });
+    }
+
+    // Get conversation history for this repository
+    const { data: conversations, error } = await supabase
+      .from('conversations')
+      .select('id, title, question, content, role, created_at, updated_at')
+      .eq('user_id', email)
+      .eq('provider', provider)
+      .eq('owner', owner)
+      .eq('repo', repo)
+      .order('created_at', { ascending: false })
+      .limit(50); // Limit to last 50 conversations
+
+    if (error) {
+      console.error('Failed to fetch conversations:', error);
+      return NextResponse.json({ success: false, error: 'Failed to fetch conversations' });
+    }
+
+    return NextResponse.json({
+      success: true,
+      conversations: conversations || []
+    });
+
+  } catch (error) {
+    console.error('Error fetching conversations:', error);
+    return NextResponse.json({ success: false, error: 'Failed to fetch conversations' }, { status: 500 });
+  }
+}

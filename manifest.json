@@ -1,0 +1,8 @@
+{
+  "web_accessible_resources": [
+    {
+      "resources": ["logo1.svg", "*.js", "*.css"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+} 

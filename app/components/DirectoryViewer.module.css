@@ -1,0 +1,274 @@
+.container {
+  overflow-x: auto;
+  height: 100%;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.breadcrumbs {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  font-size: 14px;
+  padding: 8px 16px;
+  overflow-x: auto;
+  white-space: nowrap;
+}
+
+.breadcrumbItem {
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+}
+
+.fileGrid {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 4px;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.fileItem {
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.fileSelected {
+  border-left: 3px solid #4F46E5;
+}
+
+.fileIcon {
+  display: flex;
+  align-items: center;
+}
+
+.fileName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fileActions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 8px;
+  gap: 8px;
+}
+
+.treeContainer {
+  padding: 0 16px;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.treeItem {
+  margin-bottom: 4px;
+}
+
+.treeItemHeader {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  padding: 4px 0;
+}
+
+.treeItemChildren {
+  margin-left: 20px;
+}
+
+.loadingContainer {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100%;
+  min-height: 150px;
+}
+
+.loadingSpinner {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+.errorContainer {
+  padding: 20px;
+  text-align: center;
+}
+
+.checkbox {
+  margin-right: 8px;
+}
+
+.fileSelect, .selectButton {
+  user-select: none;
+  opacity: 0.9;
+  z-index: 100;
+  pointer-events: auto !important;
+  -webkit-tap-highlight-color: transparent;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.fileSelect:hover, .selectButton:hover {
+  opacity: 1;
+  transform: scale(1.05);
+  transition: all 0.15s ease-in-out;
+}
+
+.fileSelect:active, .selectButton:active {
+  transform: scale(0.95);
+}
+
+.fileListItem {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  max-width: 100%;
+  padding: 8px 16px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  box-sizing: border-box;
+  position: relative;
+}
+
+.fileListItemLight {
+  background-color: white;
+  border-bottom: 1px solid #E5E7EB;
+}
+
+.fileListItemLight:hover {
+  background-color: #F9FAFB;
+}
+
+.fileListItemDark {
+  background-color: #1E293B;
+  border-bottom: 1px solid #2D3748;
+}
+
+.fileListItemDark:hover {
+  background-color: #293548;
+}
+
+@media (max-width: 768px) {
+  .breadcrumbs {
+    padding: 8px 12px;
+    font-size: 12px;
+    white-space: nowrap;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    gap: 4px;
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .breadcrumbs::-webkit-scrollbar {
+    display: none;
+  }
+  
+  .fileGrid {
+    grid-template-columns: 24px 1fr auto;
+    gap: 8px;
+    width: 100%;
+    box-sizing: border-box;
+  }
+  
+  .fileActions {
+    padding: 6px;
+    gap: 6px;
+    width: 100%;
+    box-sizing: border-box;
+  }
+  
+  .treeContainer {
+    padding: 0 12px;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+  
+  .fileName {
+    font-size: 13px;
+    max-width: calc(100% - 48px);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  
+  .fileIcon {
+    transform: scale(0.9);
+  }
+  
+  .treeItem {
+    padding: 2px 0;
+    width: 100%;
+    box-sizing: border-box;
+  }
+  
+  .container {
+    padding: 0;
+    max-width: 100%;
+    -webkit-overflow-scrolling: touch;
+    overflow-y: auto;
+    height: 100%;
+    width: 100%;
+    box-sizing: border-box;
+  }
+  
+  .fileItem {
+    padding: 6px 8px;
+    font-size: 13px;
+    width: 100%;
+    box-sizing: border-box;
+  }
+  
+  .fileSelect {
+    transform: scale(0.9);
+  }
+  
+  .treeItemHeader {
+    gap: 4px;
+    width: 100%;
+    box-sizing: border-box;
+  }
+  
+  .treeItemChildren {
+    width: 100%;
+    box-sizing: border-box;
+  }
+  
+  .fileListItem {
+    padding: 6px 8px;
+    font-size: 13px;
+    width: 100%;
+    box-sizing: border-box;
+  }
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.treeItemContent {
+  position: relative;
+}
+
+.treeNode {
+  position: relative;
+  margin-bottom: 2px;
+}
+
+.treeNode .fileName {
+  transition: color 0.15s ease;
+}
+
+.treeItemContent:hover .fileName {
+  color: #3B82F6;
+} 

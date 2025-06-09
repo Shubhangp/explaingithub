@@ -1,0 +1,22 @@
+.git
+.gitignore
+.next
+.env*
+node_modules
+README.md
+.dockerignore
+Dockerfile
+docker-compose*
+.env
+.env.local
+.env*.local
+*.bak
+*.log
+coverage
+.vscode
+User Repos
+tests
+*.test.*
+apply-fixes.js
+db-setup-runner.*
+scripts 

@@ -1,0 +1,10 @@
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    args: [
+      'build',
+      '--build-arg', 'NODE_ENV=${_NODE_ENV}',
+      '-t', 'gcr.io/${PROJECT_ID}/${_SERVICE_NAME}-${_NODE_ENV}:${COMMIT_SHA}',
+      '.'
+    ]
+images:
+  - 'gcr.io/${PROJECT_ID}/${_SERVICE_NAME}-${_NODE_ENV}:${COMMIT_SHA}' 

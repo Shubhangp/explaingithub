@@ -1,0 +1,91 @@
+.container {
+  overflow-x: auto;
+  height: 100%;
+}
+
+.breadcrumbs {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  font-size: 14px;
+  padding: 8px 16px;
+  overflow-x: auto;
+  white-space: nowrap;
+}
+
+.breadcrumbItem {
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+}
+
+.fileGrid {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 4px;
+  width: 100%;
+}
+
+.fileItem {
+  display: contents;
+}
+
+.fileIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+  width: 24px;
+  height: 24px;
+}
+
+.fileName {
+  padding: 8px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.loadingContainer {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100%;
+  min-height: 150px;
+}
+
+.loadingSpinner {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+.errorContainer {
+  padding: 20px;
+  text-align: center;
+}
+
+@media (max-width: 768px) {
+  .breadcrumbs {
+    padding: 6px 12px;
+    font-size: 13px;
+  }
+
+  .fileGrid {
+    grid-template-columns: auto 1fr;
+  }
+
+  .fileName {
+    font-size: 14px;
+  }
+
+  .fileIcon {
+    padding: 6px;
+  }
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+} 
