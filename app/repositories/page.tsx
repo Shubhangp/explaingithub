@@ -4,25 +4,25 @@ import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import {
   FaSearch,
-  FaBook,
   FaLock,
-  FaUnlock,
-  FaStar,
-  FaCodeBranch,
-  FaCircle,
   FaGithub,
   FaGitlab,
   FaMicrosoft,
-  FaBitbucket
+  FaBitbucket,
+  FaCloudUploadAlt,
+  FaCheck,
+  FaCircle,
+  FaStar,
+  FaCodeBranch,
 } from 'react-icons/fa'
 import Link from 'next/link'
 import { Octokit } from 'octokit'
 import axios from 'axios'
-import { motion } from 'framer-motion'
 import GitHubSignInButton from '../components/GitHubSignInButton'
 import GitLabSignInButton from '../components/GitLabSignInButton'
 import useProviderTokens from '../hooks/useProviderTokens'
 import LoadingState from '../components/LoadingState'
+import { checkRepositoryUploadStatus } from '../lib/repository-upload'
 
 // Repository interface for GitHub
 interface Repository {
@@ -53,6 +53,7 @@ interface GenericRepository {
   forks?: number
   owner: string
   provider: 'github' | 'gitlab' | 'azure' | 'bitbucket'
+  uploaded?: boolean
 }
 
 type RepoProvider = 'github' | 'gitlab' | 'azure' | 'bitbucket'
@@ -81,6 +82,7 @@ export default function RepositoriesPage() {
   const [fetchAttempted, setFetchAttempted] = useState(false)
   const [lastTokenCheck, setLastTokenCheck] = useState<number>(0)
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
+  const [uploadStatuses, setUploadStatuses] = useState<Record<string, boolean>>({})
 
   // Cache repositories to avoid unnecessary refetching
   const REPO_CACHE_DURATION = 5 * 60 * 1000; // 5 minutes in milliseconds
@@ -169,6 +171,28 @@ export default function RepositoriesPage() {
   }
 
   const connectedProviders = getConnectedProviders();
+
+  // Add effect to check upload status for repositories
+  useEffect(() => {
+    const checkUploadStatuses = async () => {
+      const repos = getGenericRepositories()
+      const statuses: Record<string, boolean> = {}
+
+      // Check upload status for each repository
+      for (const repo of repos) {
+        const key = `${repo.provider}:${repo.owner}/${repo.name}`
+        const status = await checkRepositoryUploadStatus(repo.owner, repo.name, repo.provider)
+        statuses[key] = status.uploaded
+      }
+
+      setUploadStatuses(statuses)
+    }
+
+    // Only check when we have repositories
+    if (filteredRepos.length > 0) {
+      checkUploadStatuses()
+    }
+  }, [githubRepositories, gitlabRepositories, activeProvider])
 
   // Add a periodic token check for GitLab to proactively handle expiration
   useEffect(() => {
@@ -909,8 +933,8 @@ export default function RepositoriesPage() {
                               setIsDropdownOpen(false);
                             }}
                             className={`flex items-center w-full px-4 py-2 text-sm ${activeProvider === provider
-                                ? 'bg-gray-100 text-gray-900'
-                                : 'text-gray-700 hover:bg-gray-50'
+                              ? 'bg-gray-100 text-gray-900'
+                              : 'text-gray-700 hover:bg-gray-50'
                               }`}
                           >
                             {getProviderIcon(provider as RepoProvider)}
@@ -1010,47 +1034,109 @@ export default function RepositoriesPage() {
           </div>
         ) : (
           <div className="flex flex-wrap -mx-3">
-            {filteredRepos.map((repo) => (
-              <div key={`${repo.provider}-${repo.id}`} className="w-full md:w-1/2 px-3 mb-6">
-                <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-md transition-all">
-                  <Link
-                    href={repo.provider === 'github'
-                      ? `/${repo.owner}/${repo.name}`
-                      : `/${repo.owner}/${repo.name}?provider=${repo.provider}`
-                    }
-                  >
-                    <div className="p-6 h-full">
-                      <div className="flex items-center">
-                        {getProviderIcon(repo.provider)}
-                        <h3 className="ml-2 text-base text-[#442326] dark:text-white font-medium truncate">
-                          {repo.name}
-                          {repo.private && (
-                            <FaLock className="inline ml-2 text-gray-400 text-xs" />
-                          )}
-                        </h3>
-                      </div>
+            {filteredRepos.map((repo) => {
+              const uploadKey = `${repo.provider}:${repo.owner}/${repo.name}`
+              const isUploaded = uploadStatuses[uploadKey] || false
 
-                      <div className="flex justify-between mt-4 text-sm text-gray-500">
-                        <div className="flex items-center">
-                          {repo.language && (
-                            <span className="inline-block mr-4">{repo.language}</span>
-                          )}
-                          {repo.stars && repo.stars > 0 && (
-                            <span className="inline-block mr-4">{repo.stars}</span>
-                          )}
+              return (
+                <div key={`${repo.provider}-${repo.id}`} className="w-full md:w-1/2 px-3 mb-6">
+                  <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-md transition-all">
+                    <Link
+                      href={repo.provider === 'github'
+                        ? `/${repo.owner}/${repo.name}`
+                        : `/${repo.owner}/${repo.name}?provider=${repo.provider}`
+                      }
+                    >
+                      <div className="p-6 h-full">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center flex-1 min-w-0">
+                            {getProviderIcon(repo.provider)}
+                            <h3 className="ml-2 text-base text-[#442326] dark:text-white font-medium truncate">
+                              {repo.name}
+                              {repo.private && (
+                                <FaLock className="inline ml-2 text-gray-400 text-xs" />
+                              )}
+                            </h3>
+                          </div>
+                          {/* Upload status indicator */}
+                          <div className="ml-2 flex-shrink-0">
+                            {isUploaded ? (
+                              <div className="flex items-center text-green-500 text-xs" title="Repository uploaded">
+                                <FaCheck size={12} className="mr-1" />
+                                <span>Uploaded</span>
+                              </div>
+                            ) : (
+                              <div className="flex items-center text-gray-400 text-xs" title="Repository will be uploaded on first access">
+                                <FaCloudUploadAlt size={12} className="mr-1" />
+                                <span>Not uploaded</span>
+                              </div>
+                            )}
+                          </div>
                         </div>
-                        <span className="text-xs">
-                          {repo.updated_at && `Updated ${new Date(repo.updated_at).toLocaleDateString()}`}
-                        </span>
+
+                        {repo.description && (
+                          <p className="mt-2 text-sm text-gray-600 dark:text-gray-400 line-clamp-2">
+                            {repo.description}
+                          </p>
+                        )}
+
+                        <div className="flex justify-between mt-4 text-sm text-gray-500">
+                          <div className="flex items-center gap-4">
+                            {repo.language && (
+                              <span className="flex items-center gap-1">
+                                <FaCircle className="text-xs" style={{ color: getLanguageColor(repo.language) }} />
+                                {repo.language}
+                              </span>
+                            )}
+                            {repo.stars !== undefined && repo.stars > 0 && (
+                              <span className="flex items-center gap-1">
+                                <FaStar className="text-xs" />
+                                {repo.stars}
+                              </span>
+                            )}
+                            {repo.forks !== undefined && repo.forks > 0 && (
+                              <span className="flex items-center gap-1">
+                                <FaCodeBranch className="text-xs" />
+                                {repo.forks}
+                              </span>
+                            )}
+                          </div>
+                          <span className="text-xs text-gray-400">
+                            {repo.updated_at && `Updated ${new Date(repo.updated_at).toLocaleDateString()}`}
+                          </span>
+                        </div>
                       </div>
-                    </div>
-                  </Link>
+                    </Link>
+                  </div>
                 </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         )}
       </div>
     </div>
   )
+}
+
+// Add helper function for language colors
+function getLanguageColor(language: string): string {
+  const colors: Record<string, string> = {
+    JavaScript: '#f1e05a',
+    TypeScript: '#2b7489',
+    Python: '#3572A5',
+    Java: '#b07219',
+    Go: '#00ADD8',
+    Rust: '#dea584',
+    Ruby: '#701516',
+    PHP: '#4F5D95',
+    'C++': '#f34b7d',
+    C: '#555555',
+    'C#': '#178600',
+    Swift: '#FA7343',
+    Kotlin: '#A97BFF',
+    Dart: '#00B4AB',
+    HTML: '#C084FC',
+    CSS: '#00E4AB'
+  }
+  return colors[language] || '#6e7681'
 }

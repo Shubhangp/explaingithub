@@ -226,9 +226,9 @@ export default function ChatBox({
   const [showTooltip, setShowTooltip] = useState(false);
 
   // Add new state for advanced chat
-  const [showAdvancedOptions, setShowAdvancedOptions] = useState<boolean>(false);
-  const [isUploading, setIsUploading] = useState<boolean>(false);
-  const [uploadProgress, setUploadProgress] = useState<number>(0);
+  // const [showAdvancedOptions, setShowAdvancedOptions] = useState<boolean>(false);
+  // const [isUploading, setIsUploading] = useState<boolean>(false);
+  // const [uploadProgress, setUploadProgress] = useState<number>(0);
 
   // Reset messagesLoaded when owner or repo changes to force reloading messages
   useEffect(() => {
@@ -1935,7 +1935,7 @@ The repository data is now organized by username and repository name, making it 
       };
       
       addMessage(systemMessage);
-      setShowAdvancedOptions(false);
+      // setShowAdvancedOptions(false);
       
     } catch (error) {
       console.error('Error uploading repository:', error);
@@ -2748,7 +2748,7 @@ The repository data is now organized by username and repository name, making it 
         {session ? (
           <>
             {/* Advanced Chat Button */}
-            <div style={{
+            {/* <div style={{
               display: 'flex',
               justifyContent: 'flex-end',
               marginBottom: '8px'
@@ -2770,10 +2770,10 @@ The repository data is now organized by username and repository name, making it 
               >
                 Advanced Chat {showAdvancedOptions ? <FaChevronUp size={12} /> : <FaChevronDown size={12} />}
               </button>
-            </div>
+            </div> */}
             
             {/* Advanced Options Panel */}
-            {showAdvancedOptions && (
+            {/* {showAdvancedOptions && (
               <div style={{
                 padding: '12px',
                 marginBottom: '12px',
@@ -2813,7 +2813,6 @@ The repository data is now organized by username and repository name, making it 
                   {isUploading ? 'Uploading Repository...' : 'Upload Entire Repository'}
                 </button>
                 
-                {/* Upload Progress Bar */}
                 {isUploading && uploadProgress > 0 && (
                   <div style={{
                     width: '100%',
@@ -2842,7 +2841,7 @@ The repository data is now organized by username and repository name, making it 
                   This will upload the entire repository content to enable deeper analysis and context awareness.
                 </p>
               </div>
-            )}
+            )} */}
             
             <form 
               onSubmit={(e) => {
