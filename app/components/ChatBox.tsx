@@ -1808,154 +1808,154 @@ Please ensure:
   };
 
   // Add new function to handle repository upload
-  const uploadRepositoryContents = async () => {
-    if (!isAuthenticated) {
-      // Prompt user to sign in
-      signIn('github');
-      return;
-    }
+//   const uploadRepositoryContents = async () => {
+//     if (!isAuthenticated) {
+//       // Prompt user to sign in
+//       signIn('github');
+//       return;
+//     }
     
-    try {
-      setIsUploading(true);
-      setUploadProgress(0);
+//     try {
+//       setIsUploading(true);
+//       setUploadProgress(0);
       
-      // Initialize Octokit with authentication token
-      const octokit = new Octokit({
-        auth: session?.accessToken,
-      });
+//       // Initialize Octokit with authentication token
+//       const octokit = new Octokit({
+//         auth: session?.accessToken,
+//       });
       
-      // Get repo details to verify access
-      const repoResponse = await octokit.repos.get({
-        owner,
-        repo,
-      });
+//       // Get repo details to verify access
+//       const repoResponse = await octokit.repos.get({
+//         owner,
+//         repo,
+//       });
       
-      // Get the default branch
-      const defaultBranch = repoResponse.data.default_branch;
+//       // Get the default branch
+//       const defaultBranch = repoResponse.data.default_branch;
       
-      // Get the latest commit SHA
-      const { data: refData } = await octokit.git.getRef({
-        owner,
-        repo,
-        ref: `heads/${defaultBranch}`,
-      });
+//       // Get the latest commit SHA
+//       const { data: refData } = await octokit.git.getRef({
+//         owner,
+//         repo,
+//         ref: `heads/${defaultBranch}`,
+//       });
       
-      const latestCommitSha = refData.object.sha;
+//       const latestCommitSha = refData.object.sha;
       
-      // Get the full directory tree
-      const { data: treeData } = await octokit.git.getTree({
-        owner,
-        repo,
-        tree_sha: latestCommitSha,
-        recursive: '1'
-      });
+//       // Get the full directory tree
+//       const { data: treeData } = await octokit.git.getTree({
+//         owner,
+//         repo,
+//         tree_sha: latestCommitSha,
+//         recursive: '1'
+//       });
       
-      // Only process files (not directories) and exclude large binary files
-      const filesToUpload = treeData.tree.filter(item => 
-        item.type === 'blob' && 
-        item.path.match(/\.(md|txt|js|jsx|ts|tsx|json|css|scss|html|py|rb|java|c|cpp|h|php|go|rs|swift|kt)$/i)
-      );
+//       // Only process files (not directories) and exclude large binary files
+//       const filesToUpload = treeData.tree.filter(item => 
+//         item.type === 'blob' && 
+//         item.path.match(/\.(md|txt|js|jsx|ts|tsx|json|css|scss|html|py|rb|java|c|cpp|h|php|go|rs|swift|kt)$/i)
+//       );
       
-      // Prepare the repository data object
-      const repoData = {
-        owner,
-        repo,
-        branch: defaultBranch,
-        files: {}
-      };
+//       // Prepare the repository data object
+//       const repoData = {
+//         owner,
+//         repo,
+//         branch: defaultBranch,
+//         files: {}
+//       };
       
-      // Add initial message about starting the upload
-      const initiatingMessage: Message = {
-        id: generateId(),
-        role: 'assistant',
-        content: `Starting repository upload for ${owner}/${repo}. The files will be stored in \`User Repos/${owner}/${repo}\` folder with a metadata file containing the directory structure. A zip file will also be created and sent to the external API.`,
-        timestamp: Date.now(),
-      };
+//       // Add initial message about starting the upload
+//       const initiatingMessage: Message = {
+//         id: generateId(),
+//         role: 'assistant',
+//         content: `Starting repository upload for ${owner}/${repo}. The files will be stored in \`User Repos/${owner}/${repo}\` folder with a metadata file containing the directory structure. A zip file will also be created and sent to the external API.`,
+//         timestamp: Date.now(),
+//       };
       
-      addMessage(initiatingMessage);
+//       addMessage(initiatingMessage);
       
-      // Load content for each file
-      for (let i = 0; i < filesToUpload.length; i++) {
-        const file = filesToUpload[i];
-        setUploadProgress(Math.floor((i / filesToUpload.length) * 100));
+//       // Load content for each file
+//       for (let i = 0; i < filesToUpload.length; i++) {
+//         const file = filesToUpload[i];
+//         setUploadProgress(Math.floor((i / filesToUpload.length) * 100));
         
-        try {
-          const { data: fileData } = await octokit.git.getBlob({
-            owner,
-            repo,
-            file_sha: file.sha || '',
-          });
+//         try {
+//           const { data: fileData } = await octokit.git.getBlob({
+//             owner,
+//             repo,
+//             file_sha: file.sha || '',
+//           });
           
-          // Decode base64 content
-          const content = fileData.encoding === 'base64' 
-            ? atob(fileData.content) 
-            : fileData.content;
+//           // Decode base64 content
+//           const content = fileData.encoding === 'base64' 
+//             ? atob(fileData.content) 
+//             : fileData.content;
             
-          repoData.files[file.path] = content;
-        } catch (error) {
-          console.error(`Error fetching file ${file.path}:`, error);
-          // Continue with other files even if one fails
-        }
-      }
+//           repoData.files[file.path] = content;
+//         } catch (error) {
+//           console.error(`Error fetching file ${file.path}:`, error);
+//           // Continue with other files even if one fails
+//         }
+//       }
       
-      // Upload the entire repository data to the backend
-      const response = await fetch('/api/upload-repository', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(repoData),
-      });
+//       // Upload the entire repository data to the backend
+//       const response = await fetch('/api/upload-repository', {
+//         method: 'POST',
+//         headers: {
+//           'Content-Type': 'application/json',
+//         },
+//         body: JSON.stringify(repoData),
+//       });
       
-      if (!response.ok) {
-        throw new Error(`Server responded with ${response.status}`);
-      }
+//       if (!response.ok) {
+//         throw new Error(`Server responded with ${response.status}`);
+//       }
       
-      // Get response data
-      const responseData = await response.json();
+//       // Get response data
+//       const responseData = await response.json();
       
-      // Add system message confirming upload with detailed information
-      const systemMessage: Message = {
-        id: generateId(),
-        role: 'assistant',
-        content: `✅ Repository contents for ${owner}/${repo} have been uploaded successfully.
+//       // Add system message confirming upload with detailed information
+//       const systemMessage: Message = {
+//         id: generateId(),
+//         role: 'assistant',
+//         content: `✅ Repository contents for ${owner}/${repo} have been uploaded successfully.
 
-**Storage Location:**
-- Folder: \`User Repos/${owner}/${repo}\`
-- Contains: All repository files and a metadata.json file
-- Metadata: Includes directory structure and file information
-- Zip File: \`${responseData.zipFile}\` has been created (using underscore instead of slash)
+// **Storage Location:**
+// - Folder: \`User Repos/${owner}/${repo}\`
+// - Contains: All repository files and a metadata.json file
+// - Metadata: Includes directory structure and file information
+// - Zip File: \`${responseData.zipFile}\` has been created (using underscore instead of slash)
 
-${responseData.apiUploadStatus ? `**API Upload Status:** ${responseData.apiUploadStatus}` : '**API Upload:** The zip file has been sent to the external API endpoint.'}
+// ${responseData.apiUploadStatus ? `**API Upload Status:** ${responseData.apiUploadStatus}` : '**API Upload:** The zip file has been sent to the external API endpoint.'}
 
-The repository data is now organized by username and repository name, making it easier to navigate and analyze. 
+// The repository data is now organized by username and repository name, making it easier to navigate and analyze. 
 
-**Note:** The zip filename uses underscores (${owner}_${repo}.zip) instead of slashes to be compatible with file systems. The original path (${owner}/${repo}) is preserved in the metadata and API request.`,
-        timestamp: Date.now(),
-      };
+// **Note:** The zip filename uses underscores (${owner}_${repo}.zip) instead of slashes to be compatible with file systems. The original path (${owner}/${repo}) is preserved in the metadata and API request.`,
+//         timestamp: Date.now(),
+//       };
       
-      addMessage(systemMessage);
-      // setShowAdvancedOptions(false);
+//       addMessage(systemMessage);
+//       // setShowAdvancedOptions(false);
       
-    } catch (error) {
-      console.error('Error uploading repository:', error);
+//     } catch (error) {
+//       console.error('Error uploading repository:', error);
       
-      // Add error message to chat
-      const errorMessage: Message = {
-        id: generateId(),
-        role: 'assistant',
-        content: `Failed to upload repository contents: ${error.message}. Please try again later.`,
-        timestamp: Date.now(),
-      };
+//       // Add error message to chat
+//       const errorMessage: Message = {
+//         id: generateId(),
+//         role: 'assistant',
+//         content: `Failed to upload repository contents: ${error.message}. Please try again later.`,
+//         timestamp: Date.now(),
+//       };
       
-      addMessage(errorMessage);
-    } finally {
-      setIsUploading(false);
-      setUploadProgress(100);
-      // Reset progress after showing 100% complete
-      setTimeout(() => setUploadProgress(0), 1000);
-    }
-  };
+//       addMessage(errorMessage);
+//     } finally {
+//       setIsUploading(false);
+//       setUploadProgress(100);
+//       // Reset progress after showing 100% complete
+//       setTimeout(() => setUploadProgress(0), 1000);
+//     }
+//   };
 
   // Define a helper function to add messages
   const addMessage = (message: Message) => {

@@ -1,4 +1,3 @@
-// app/lib/repository-upload.ts
 import { Octokit } from '@octokit/rest';
 
 export interface UploadStatus {
@@ -92,24 +91,61 @@ export async function uploadRepositoryContents(
       throw new Error(`Provider ${provider} is not yet supported for automatic upload`);
     }
 
+    if (!accessToken) {
+      throw new Error('No access token provided');
+    }
+
     onMessage?.(`Starting repository upload for ${owner}/${repo}...`);
     onProgress?.(0);
 
-    // Initialize Octokit
+    // Initialize Octokit with proper authentication
+    // GitHub expects the token in a specific format
+    console.log('Initializing Octokit with token (first 10 chars):', accessToken.substring(0, 10) + '...');
+    
     const octokit = new Octokit({
       auth: accessToken,
+      // Add request timeout and retry options
+      request: {
+        timeout: 30000, // 30 seconds timeout
+      },
+      retry: {
+        enabled: true,
+        retries: 3,
+      }
     });
+
+    // Test authentication first
+    try {
+      console.log('Testing GitHub authentication...');
+      const authTest = await octokit.rest.users.getAuthenticated();
+      console.log('Authentication successful for user:', authTest.data.login);
+    } catch (authError: any) {
+      console.error('GitHub authentication failed:', authError);
+      throw new Error(`GitHub authentication failed: ${authError.message || 'Invalid token'}`);
+    }
 
     // Get repo details
-    const repoResponse = await octokit.repos.get({
-      owner,
-      repo,
-    });
+    console.log(`Fetching repository details for ${owner}/${repo}...`);
+    let repoResponse;
+    try {
+      repoResponse = await octokit.repos.get({
+        owner,
+        repo,
+      });
+    } catch (repoError: any) {
+      console.error('Error fetching repository:', repoError);
+      if (repoError.status === 404) {
+        throw new Error(`Repository ${owner}/${repo} not found or you don't have access`);
+      }
+      throw new Error(`Failed to fetch repository: ${repoError.message}`);
+    }
 
     const defaultBranch = repoResponse.data.default_branch;
+    console.log('Repository default branch:', defaultBranch);
     onProgress?.(10);
 
     // Get the latest commit SHA
+    console.log('Fetching latest commit...');
     const { data: refData } = await octokit.git.getRef({
       owner,
       repo,
@@ -117,9 +153,11 @@ export async function uploadRepositoryContents(
     });
 
     const latestCommitSha = refData.object.sha;
+    console.log('Latest commit SHA:', latestCommitSha);
     onProgress?.(20);
 
     // Get the full directory tree
+    console.log('Fetching repository tree...');
     const { data: treeData } = await octokit.git.getTree({
       owner,
       repo,
@@ -127,15 +165,18 @@ export async function uploadRepositoryContents(
       recursive: '1',
     });
 
-    // Filter files to upload
+    // Filter files to upload (exclude binary files and large files)
     const filesToUpload = treeData.tree.filter(
       (item) =>
         item.type === 'blob' &&
         item.path &&
-        item.path.match(/\.(md|txt|js|jsx|ts|tsx|json|css|scss|html|py|rb|java|c|cpp|h|php|go|rs|swift|kt|yml|yaml|xml|sh|bash|zsh|fish|ps1|psm1|psd1|gradle|properties|conf|config|env|gitignore|dockerfile|makefile|cmake|rake|gemfile|requirements|package|composer|cargo|cabal|mix|rebar|erlang|elixir|clj|cljs|cljc|scala|sbt|fs|fsx|fsi|ml|mli|re|rei|v|sv|svh|vhd|vhdl|dart|r|jl|lua|vim|el|lisp|scm|rkt|hs|lhs|agda|idr|lean|coq|thy|v|nim|cr|ex|exs|erl|hrl|zig|asm|s|S|nasm|masm|wat|wast)$/i
-        )
+        // Only include text-based files
+        item.path.match(/\.(md|txt|js|jsx|ts|tsx|json|css|scss|html|py|rb|java|c|cpp|h|php|go|rs|swift|kt|yml|yaml|xml|sh|bash|zsh|fish|ps1|psm1|psd1|gradle|properties|conf|config|env|gitignore|dockerfile|makefile|cmake|rake|gemfile|requirements|package|composer|cargo|cabal|mix|rebar|erlang|elixir|clj|cljs|cljc|scala|sbt|fs|fsx|fsi|ml|mli|re|rei|v|sv|svh|vhd|vhdl|dart|r|jl|lua|vim|el|lisp|scm|rkt|hs|lhs|agda|idr|lean|coq|thy|v|nim|cr|ex|exs|erl|hrl|zig|asm|s|S|nasm|masm|wat|wast)$/i) &&
+        // Exclude files that are too large (optional size check)
+        (!item.size || item.size < 1024 * 1024) // Less than 1MB
     );
 
+    console.log(`Found ${filesToUpload.length} files to upload`);
     onProgress?.(30);
 
     // Prepare repository data
@@ -149,10 +190,19 @@ export async function uploadRepositoryContents(
     // Load file contents
     const totalFiles = filesToUpload.length;
     let processedFiles = 0;
+    let skippedFiles = 0;
 
     for (const file of filesToUpload) {
       try {
-        if (!file.sha || !file.path) continue;
+        if (!file.sha || !file.path) {
+          skippedFiles++;
+          continue;
+        }
+
+        // Log progress every 10 files
+        if (processedFiles % 10 === 0) {
+          console.log(`Processing file ${processedFiles + 1}/${totalFiles}: ${file.path}`);
+        }
 
         const { data: fileData } = await octokit.git.getBlob({
           owner,
@@ -160,11 +210,19 @@ export async function uploadRepositoryContents(
           file_sha: file.sha,
         });
 
-        // Decode content
-        const content =
-          fileData.encoding === 'base64'
-            ? atob(fileData.content)
-            : fileData.content;
+        // Decode content based on encoding
+        let content: string;
+        if (fileData.encoding === 'base64') {
+          try {
+            content = atob(fileData.content);
+          } catch (decodeError) {
+            console.warn(`Failed to decode base64 for ${file.path}, skipping`);
+            skippedFiles++;
+            continue;
+          }
+        } else {
+          content = fileData.content;
+        }
 
         repoData.files[file.path] = content;
         processedFiles++;
@@ -172,11 +230,14 @@ export async function uploadRepositoryContents(
         // Update progress
         const fileProgress = 30 + (processedFiles / totalFiles) * 60;
         onProgress?.(Math.floor(fileProgress));
-      } catch (error) {
-        console.error(`Error fetching file ${file.path}:`, error);
+      } catch (error: any) {
+        console.error(`Error fetching file ${file.path}:`, error.message);
+        skippedFiles++;
+        // Continue with other files even if one fails
       }
     }
 
+    console.log(`Processed ${processedFiles} files, skipped ${skippedFiles} files`);
     onProgress?.(90);
     onMessage?.(`Uploading ${processedFiles} files to server...`);
 
@@ -190,7 +251,9 @@ export async function uploadRepositoryContents(
     });
 
     if (!response.ok) {
-      throw new Error(`Server responded with ${response.status}`);
+      const errorText = await response.text();
+      console.error('Server response error:', errorText);
+      throw new Error(`Server responded with ${response.status}: ${errorText}`);
     }
 
     const responseData = await response.json();
