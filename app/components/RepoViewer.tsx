@@ -5,8 +5,8 @@ import { useSession } from 'next-auth/react'
 import DirectoryViewer from '@/app/components/DirectoryViewer'
 import FileViewer from '@/app/components/FileViewer'
 import ChatBox from '@/app/components/ChatBox'
-import { 
-  FaGithub, 
+import {
+  FaGithub,
   FaCode,
   FaSearch,
   FaChevronRight,
@@ -54,32 +54,32 @@ export default function RepoViewer({ owner, repo, provider = 'github' }: RepoVie
   const [mobileView, setMobileView] = useState(false);
   const [chatLoading, setChatLoading] = useState(false);
   const [inputValue, setInputValue] = useState('');
-  
+
   // Add state for panel maximization
   const [maximizedPanel, setMaximizedPanel] = useState<'none' | 'files' | 'fileViewer' | 'chat'>('none');
-  
+
   // Panel resize management - simplified for two panels
   const [leftPanelWidth, setLeftPanelWidth] = useState(30); // percentage
   const [rightPanelWidth, setRightPanelWidth] = useState(70); // percentage
-  
+
   // Store original dimensions for restoring after maximization
   const [originalDimensions, setOriginalDimensions] = useState({
     leftPanelWidth: 30,
     topRowHeight: 60,
     bottomRowHeight: 40
   });
-  
+
   // Add state for vertical resizing of the right panel rows
   const [topRowHeight, setTopRowHeight] = useState(60);
   const [bottomRowHeight, setBottomRowHeight] = useState(40);
   const [verticalResizing, setVerticalResizing] = useState(false);
   const [initialY, setInitialY] = useState(0);
   const [initialTopHeight, setInitialTopHeight] = useState(0);
-  
+
   const [resizing, setResizing] = useState(false);
   const [initialX, setInitialX] = useState(0);
   const [initialLeftWidth, setInitialLeftWidth] = useState(0);
-  
+
   const containerRef = useRef<HTMLDivElement>(null);
   const leftPanelRef = useRef<HTMLDivElement>(null);
   const rightPanelRef = useRef<HTMLDivElement>(null);
@@ -97,7 +97,7 @@ export default function RepoViewer({ owner, repo, provider = 'github' }: RepoVie
   });
 
   const currentTheme = (resolvedTheme || systemTheme) as 'light' | 'dark';
-  
+
   // Updated colors object with both light and dark theme colors
   const colors = {
     background: currentTheme === 'light' ? '#FFFFFF' : '#0D1117',
@@ -109,14 +109,14 @@ export default function RepoViewer({ owner, repo, provider = 'github' }: RepoVie
     buttonHover: currentTheme === 'light' ? '#F3F4F6' : '#21262D',
     buttonActive: currentTheme === 'light' ? '#E5E7EB' : '#282E33',
     codeBackground: currentTheme === 'light' ? '#FFFFFF' : '#0D1117',
-    shadow: currentTheme === 'light' 
+    shadow: currentTheme === 'light'
       ? '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
       : '0 4px 6px -1px rgba(0, 0, 0, 0.5), 0 2px 4px -1px rgba(0, 0, 0, 0.3)'
   };
 
   useEffect(() => {
     setLoading(false);
-    
+
     // Find and set README.md as the default file
     findAndSetReadmeFile();
   }, [owner, repo]);
@@ -128,26 +128,26 @@ export default function RepoViewer({ owner, repo, provider = 'github' }: RepoVie
         setMobileView(window.innerWidth <= 768);
       }, 0);
     };
-    
+
     checkMobile();
     window.addEventListener('resize', checkMobile);
-    
+
     return () => {
       window.removeEventListener('resize', checkMobile);
     };
   }, []);
-  
+
   useEffect(() => {
     if (resizing) {
       window.addEventListener('mousemove', handleMouseMove);
       window.addEventListener('mouseup', handleMouseUp);
     }
-    
+
     if (verticalResizing) {
       window.addEventListener('mousemove', handleVerticalMouseMove);
       window.addEventListener('mouseup', handleVerticalMouseUp);
     }
-    
+
     return () => {
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
@@ -155,28 +155,28 @@ export default function RepoViewer({ owner, repo, provider = 'github' }: RepoVie
       window.removeEventListener('mouseup', handleVerticalMouseUp);
     };
   }, [resizing, verticalResizing]);
-  
+
   const handleMouseMove = (e: MouseEvent) => {
     if (!resizing || !containerRef.current) return;
-    
+
     const dx = e.clientX - initialX;
     const containerWidth = containerRef.current.clientWidth;
-    
+
     // Calculate new widths based on the mouse movement
     let newLeftWidth = initialLeftWidth + (dx / containerWidth * 100);
-    
+
     // Apply constraints to prevent panels from becoming too small
     newLeftWidth = Math.max(20, Math.min(80, newLeftWidth));
-    
+
     // Update the panel widths
     setLeftPanelWidth(newLeftWidth);
     setRightPanelWidth(100 - newLeftWidth);
   };
-  
+
   const handleMouseUp = () => {
     setResizing(false);
   };
-  
+
   const startResizing = (e: React.MouseEvent) => {
     setResizing(true);
     setInitialX(e.clientX);
@@ -194,9 +194,20 @@ export default function RepoViewer({ owner, repo, provider = 'github' }: RepoVie
   }, [chatMessages]);
 
   const handleAddMessage = (message: Message) => {
-    console.log('Adding message to chat state:', message.id, message.role);
-    setChatMessages(prevMessages => [...prevMessages, message]);
+    setChatMessages(prevMessages => {
+      const existingIndex = prevMessages.findIndex(m => m.id === message.id);
+
+      if (existingIndex !== -1) {
+        // Replace existing message
+        const updatedMessages = [...prevMessages];
+        updatedMessages[existingIndex] = message;
+        return updatedMessages;
+      }
+
+      return [...prevMessages, message];
+    });
   };
+
 
   // Clear chat messages when navigating to a different repo
   useEffect(() => {
@@ -221,7 +232,7 @@ export default function RepoViewer({ owner, repo, provider = 'github' }: RepoVie
 
   const handleSetRepoContext = (context: { structure: string; readme: string; taggedFiles: Record<string, string> }) => {
     setRepoContext(context);
-    
+
     // If no file is selected yet, try to find README.md in the repo structure
     if (!selectedFile) {
       findReadmePathFromStructure(context.structure);
@@ -235,10 +246,10 @@ export default function RepoViewer({ owner, repo, provider = 'github' }: RepoVie
       const octokit = new Octokit({
         auth: session?.accessToken || undefined,
       });
-      
+
       // Common README filenames to check
       const readmeFiles = ['README.md', 'Readme.md', 'readme.md', 'README.markdown', 'README'];
-      
+
       for (const filename of readmeFiles) {
         try {
           const { data: readmeData } = await octokit.repos.getContent({
@@ -246,7 +257,7 @@ export default function RepoViewer({ owner, repo, provider = 'github' }: RepoVie
             repo,
             path: filename,
           });
-          
+
           if ('path' in readmeData) {
             console.log('Found README file:', readmeData.path);
             setSelectedFile(readmeData.path);
@@ -257,17 +268,17 @@ export default function RepoViewer({ owner, repo, provider = 'github' }: RepoVie
           continue;
         }
       }
-      
+
       console.log('No README file found in the repository root');
     } catch (error) {
       console.error('Error finding README file:', error);
     }
   };
-  
+
   // Fallback method to find README path from the structure string
   const findReadmePathFromStructure = (structure: string) => {
     if (!structure) return;
-    
+
     // Try to find a README file in the structure
     const lines = structure.split('\n');
     for (const line of lines) {
@@ -290,7 +301,7 @@ export default function RepoViewer({ owner, repo, provider = 'github' }: RepoVie
   };
 
   const directoryViewerComponent = (
-    <DirectoryViewer 
+    <DirectoryViewer
       owner={owner}
       repo={repo}
       provider={provider}
@@ -300,9 +311,9 @@ export default function RepoViewer({ owner, repo, provider = 'github' }: RepoVie
       viewMode={viewMode}
     />
   );
-  
+
   const fileViewerComponent = selectedFile ? (
-    <FileViewer 
+    <FileViewer
       owner={owner}
       repo={repo}
       filePath={selectedFile}
@@ -312,7 +323,7 @@ export default function RepoViewer({ owner, repo, provider = 'github' }: RepoVie
   ) : null;
 
   const chatComponent = (
-    <ChatBox 
+    <ChatBox
       owner={owner}
       repo={repo}
       provider={provider}
@@ -331,28 +342,28 @@ export default function RepoViewer({ owner, repo, provider = 'github' }: RepoVie
 
   const handleVerticalMouseMove = (e: MouseEvent) => {
     if (!verticalResizing || !rightPanelRef.current) return;
-    
+
     const containerHeight = rightPanelRef.current.clientHeight;
     const dy = e.clientY - initialY;
-    
+
     // Calculate new heights based on the mouse movement
     let newTopHeight = initialTopHeight + (dy / containerHeight * 100);
-    
+
     // Apply constraints to prevent panels from becoming too small
     newTopHeight = Math.max(20, Math.min(80, newTopHeight));
-    
+
     // Update the heights
     setTopRowHeight(newTopHeight);
     setBottomRowHeight(100 - newTopHeight);
   };
-  
+
   const handleVerticalMouseUp = () => {
     setVerticalResizing(false);
   };
-  
+
   const startVerticalResizing = (e: React.MouseEvent) => {
     if (!rightPanelRef.current) return;
-    
+
     setVerticalResizing(true);
     setInitialY(e.clientY);
     setInitialTopHeight(topRowHeight);
@@ -372,20 +383,20 @@ export default function RepoViewer({ owner, repo, provider = 'github' }: RepoVie
   const generateTreeStructure = (paths: string[]) => {
     // Sort paths to ensure directories come first within their level
     paths.sort();
-    
+
     // Define interface for tree nodes
     interface TreeNode {
       isDirectory: boolean;
       children: { [key: string]: TreeNode };
     }
-    
+
     const root: { [key: string]: TreeNode } = {};
-    
+
     // Build a nested object structure representing the file hierarchy
     paths.forEach(path => {
       const parts = path.split('/').filter(p => p);
       let current = root;
-      
+
       parts.forEach((part, index) => {
         if (!current[part]) {
           current[part] = {
@@ -396,31 +407,31 @@ export default function RepoViewer({ owner, repo, provider = 'github' }: RepoVie
         current = current[part].children;
       });
     });
-    
+
     // Format the tree structure with proper symbols
     const formatTree = (node: { [key: string]: TreeNode }, prefix = '', isLast = true, rootName = '') => {
       const entries = Object.entries(node);
       if (entries.length === 0) return '';
-      
+
       let result = rootName ? `${prefix}${isLast ? '└── ' : '├── '}${rootName}/\n` : '';
-      
+
       entries.forEach(([name, data], index) => {
         const isLastItem = index === entries.length - 1;
         const newPrefix = prefix + (rootName && isLast ? '    ' : '│   ');
-        
+
         if (data.isDirectory) {
           // Directory
           if (rootName) {
             // If not the root level, we include the directory in the tree
             result += `${newPrefix}${isLastItem ? '└── ' : '├── '}${name}/\n`;
-            
+
             // Process children with updated prefix
             const childPrefix = newPrefix + (isLastItem ? '    ' : '│   ');
             const childEntries = Object.entries(data.children);
-            
+
             childEntries.forEach(([childName, childData], childIndex) => {
               const isLastChild = childIndex === childEntries.length - 1;
-              
+
               if (childData.isDirectory) {
                 result += formatTree(
                   { [childName]: childData },
@@ -442,18 +453,18 @@ export default function RepoViewer({ owner, repo, provider = 'github' }: RepoVie
           result += `${prefix}${isLastItem ? '└── ' : '├── '}${name}\n`;
         }
       });
-      
+
       return result;
     };
-    
+
     // Get the top-level directories and format them
     let result = '';
     const rootEntries = Object.entries(root);
-    
+
     if (rootEntries.length > 0) {
       // Add the repo name as root
       result = `Directory structure:\n└── ${owner}/${repo}/\n`;
-      
+
       // Format each top-level entry
       rootEntries.forEach(([name, data], index) => {
         const isLastItem = index === rootEntries.length - 1;
@@ -466,7 +477,7 @@ export default function RepoViewer({ owner, repo, provider = 'github' }: RepoVie
     } else {
       result = `Directory structure of ${owner}/${repo} (empty)`;
     }
-    
+
     return result;
   };
 
@@ -474,29 +485,29 @@ export default function RepoViewer({ owner, repo, provider = 'github' }: RepoVie
   const copyDirectoryStructure = () => {
     try {
       let structure = '';
-      
+
       // Check if we have directory structure available
       if (repoContext && repoContext.structure && repoContext.structure.length > 0) {
         // Process the existing structure to ensure proper tree formatting
         const lines = repoContext.structure.split('\n');
-        
+
         // Initial line is typically the repo header
         structure = `Directory structure:\n└── ${owner}/${repo}/\n`;
-        
+
         // Parse and format the rest with proper tree characters
         let lastDepth = 0;
         let depthStack = [];
-        
+
         for (let i = 1; i < lines.length; i++) {
           const line = lines[i];
           if (!line.trim()) continue; // Skip empty lines
-          
+
           // Calculate indentation depth
           const match = line.match(/^(\s*)(.+)$/);
           if (!match) continue;
-          
+
           const indentation = match[1];
-          
+
           // Remove any icons or special characters (like 📄, 📁, etc.)
           let content = match[2]
             .replace(/[└├]── /, '')
@@ -508,35 +519,35 @@ export default function RepoViewer({ owner, repo, provider = 'github' }: RepoVie
             .replace(/📑\s+/, '')
             .replace(/📝\s+/, '')
             .replace(/📃\s+/, '');
-            
+
           const currentDepth = Math.floor(indentation.length / 4);
-          
+
           // Pop from stack if we're moving back up
           while (depthStack.length > currentDepth) {
             depthStack.pop();
           }
-          
+
           // Push to stack if we're going deeper
           while (depthStack.length < currentDepth) {
             depthStack.push(false);
           }
-          
+
           // Determine if this is the last item at this level
-          const nextLine = lines[i+1];
+          const nextLine = lines[i + 1];
           const nextIndentMatch = nextLine ? nextLine.match(/^(\s*)/) : null;
           const nextIndent = nextIndentMatch?.[1]?.length || 0;
           const isLast = i === lines.length - 1 || nextIndent <= indentation.length;
-          
+
           if (isLast) {
             depthStack[depthStack.length - 1] = true;
           }
-          
+
           // Generate proper prefix
           let prefix = '';
           for (let j = 0; j < depthStack.length; j++) {
             prefix += depthStack[j] ? '    ' : '│   ';
           }
-          
+
           // Add formatted line
           const isDir = content.endsWith('/');
           structure += prefix + (isLast ? '└── ' : '├── ') + content + '\n';
@@ -545,7 +556,7 @@ export default function RepoViewer({ owner, repo, provider = 'github' }: RepoVie
         // Fallback to a basic structure if actual data is not available
         structure = `Directory structure of ${owner}/${repo} is still loading...`;
       }
-      
+
       // Copy to clipboard
       navigator.clipboard.writeText(structure)
         .then(() => {
@@ -629,7 +640,7 @@ export default function RepoViewer({ owner, repo, provider = 'github' }: RepoVie
         await addRepoToHistory(session.user.email, provider, owner, repo);
       }
     };
-    
+
     saveRepoToHistory();
   }, [owner, repo, provider, session?.user?.email]);
 
@@ -688,7 +699,7 @@ export default function RepoViewer({ owner, repo, provider = 'github' }: RepoVie
             </div>
           </div>
         </div>
-        
+
         <div style={{
           display: 'flex',
           flexDirection: 'column',
@@ -712,7 +723,7 @@ export default function RepoViewer({ owner, repo, provider = 'github' }: RepoVie
             }}>
               <div style={{ fontWeight: 'bold', fontSize: '14px' }}>Files</div>
               <div style={{ display: 'flex', gap: '8px' }}>
-                <button 
+                <button
                   onClick={() => setViewMode('github')}
                   style={{
                     background: viewMode === 'github' ? '#E1F0FF' : 'transparent',
@@ -724,7 +735,7 @@ export default function RepoViewer({ owner, repo, provider = 'github' }: RepoVie
                 >
                   {provider === 'gitlab' ? 'GitLab' : 'GitHub'}
                 </button>
-                <button 
+                <button
                   onClick={() => setViewMode('tree')}
                   style={{
                     background: viewMode === 'tree' ? '#E1F0FF' : 'transparent',
@@ -737,7 +748,7 @@ export default function RepoViewer({ owner, repo, provider = 'github' }: RepoVie
                   Tree
                 </button>
                 {viewMode === 'tree' && (
-                  <button 
+                  <button
                     onClick={copyDirectoryStructure}
                     style={{
                       background: 'transparent',
@@ -775,7 +786,7 @@ export default function RepoViewer({ owner, repo, provider = 'github' }: RepoVie
                 </button>
               </div>
             </div>
-            <div style={{ 
+            <div style={{
               flex: 1,
               overflow: 'auto',
               width: '100%',
@@ -806,7 +817,7 @@ export default function RepoViewer({ owner, repo, provider = 'github' }: RepoVie
                 width: '100%',
                 boxSizing: 'border-box'
               }}>
-                <div style={{ 
+                <div style={{
                   fontSize: '13px',
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
@@ -835,9 +846,9 @@ export default function RepoViewer({ owner, repo, provider = 'github' }: RepoVie
                   {maximizedPanel === 'fileViewer' ? <FaCompress size={14} /> : <FaExpand size={14} />}
                 </button>
               </div>
-              <div style={{ 
+              <div style={{
                 flex: 1,
-                overflow: 'auto', 
+                overflow: 'auto',
                 padding: '8px',
                 width: '100%',
                 boxSizing: 'border-box'
@@ -880,7 +891,7 @@ export default function RepoViewer({ owner, repo, provider = 'github' }: RepoVie
                 {maximizedPanel === 'chat' ? <FaCompress size={14} /> : <FaExpand size={14} />}
               </button>
             </div>
-            <div style={{ 
+            <div style={{
               flex: 1,
               overflow: 'auto',
               width: '100%',
@@ -945,12 +956,12 @@ export default function RepoViewer({ owner, repo, provider = 'github' }: RepoVie
       </div>
 
       {/* Main container */}
-      <div 
+      <div
         ref={containerRef}
-        style={{ 
+        style={{
           width: '1200px',
           height: '95vh',
-          display: 'flex', 
+          display: 'flex',
           flexDirection: 'column',
           backgroundColor: colors.background,
           color: colors.text,
@@ -960,17 +971,17 @@ export default function RepoViewer({ owner, repo, provider = 'github' }: RepoVie
         }}
       >
         {/* Main content - 2 panels */}
-        <div style={{ 
-          display: 'flex', 
+        <div style={{
+          display: 'flex',
           flex: '1',
           overflow: 'hidden'
         }}>
           {/* Left panel - Repository */}
-          <div 
+          <div
             ref={leftPanelRef}
-            style={{ 
-              width: maximizedPanel === 'files' ? '100%' : 
-                     maximizedPanel !== 'none' ? '0%' : `${leftPanelWidth}%`, 
+            style={{
+              width: maximizedPanel === 'files' ? '100%' :
+                maximizedPanel !== 'none' ? '0%' : `${leftPanelWidth}%`,
               height: '100%',
               display: 'flex',
               flexDirection: 'column',
@@ -994,7 +1005,7 @@ export default function RepoViewer({ owner, repo, provider = 'github' }: RepoVie
                 <span>Files</span>
               </div>
               <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                <button 
+                <button
                   onClick={() => setViewMode('github')}
                   style={{
                     background: viewMode === 'github' ? colors.buttonActive : 'transparent',
@@ -1011,7 +1022,7 @@ export default function RepoViewer({ owner, repo, provider = 'github' }: RepoVie
                 >
                   {provider === 'gitlab' ? <FaGitlab size={14} /> : <FaGithub size={14} />}
                 </button>
-                <button 
+                <button
                   onClick={() => setViewMode('tree')}
                   style={{
                     background: viewMode === 'tree' ? colors.buttonActive : 'transparent',
@@ -1029,7 +1040,7 @@ export default function RepoViewer({ owner, repo, provider = 'github' }: RepoVie
                   <FaCode size={14} />
                 </button>
                 {viewMode === 'tree' && (
-                  <button 
+                  <button
                     onClick={copyDirectoryStructure}
                     style={{
                       background: 'transparent',
@@ -1066,19 +1077,19 @@ export default function RepoViewer({ owner, repo, provider = 'github' }: RepoVie
                 </button>
               </div>
             </div>
-            
+
             {/* File tree */}
-            <div style={{ 
-              flex: '1', 
+            <div style={{
+              flex: '1',
               overflow: 'auto',
               backgroundColor: colors.menuBackground
             }}>
               {directoryViewerComponent}
             </div>
-            
+
             {/* Resize handle */}
             {maximizedPanel === 'none' && (
-              <div 
+              <div
                 style={{
                   position: 'absolute',
                   top: 0,
@@ -1092,13 +1103,13 @@ export default function RepoViewer({ owner, repo, provider = 'github' }: RepoVie
               />
             )}
           </div>
-          
+
           {/* Right panel */}
-          <div 
+          <div
             ref={rightPanelRef}
-            style={{ 
-              width: (maximizedPanel === 'fileViewer' || maximizedPanel === 'chat') ? '100%' : 
-                     maximizedPanel === 'files' ? '0%' : `${rightPanelWidth}%`, 
+            style={{
+              width: (maximizedPanel === 'fileViewer' || maximizedPanel === 'chat') ? '100%' :
+                maximizedPanel === 'files' ? '0%' : `${rightPanelWidth}%`,
               height: '100%',
               display: 'flex',
               flexDirection: 'column',
@@ -1108,9 +1119,9 @@ export default function RepoViewer({ owner, repo, provider = 'github' }: RepoVie
             }}
           >
             {/* Top row - Chat */}
-            <div style={{ 
-              height: maximizedPanel === 'chat' ? '100%' : 
-                      maximizedPanel === 'fileViewer' ? '0%' : `${topRowHeight}%`,
+            <div style={{
+              height: maximizedPanel === 'chat' ? '100%' :
+                maximizedPanel === 'fileViewer' ? '0%' : `${topRowHeight}%`,
               borderBottom: maximizedPanel === 'none' ? `1px solid ${colors.border}` : 'none',
               display: 'flex',
               flexDirection: 'column',
@@ -1131,7 +1142,7 @@ export default function RepoViewer({ owner, repo, provider = 'github' }: RepoVie
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold', color: colors.text }}>
                   <span>Chat</span>
                 </div>
-                <button 
+                <button
                   className={styles.iconButton}
                   style={{
                     background: 'none',
@@ -1150,20 +1161,20 @@ export default function RepoViewer({ owner, repo, provider = 'github' }: RepoVie
                   {maximizedPanel === 'chat' ? <FaCompress size={14} /> : <FaExpand size={14} />}
                 </button>
               </div>
-              
+
               {/* Chat component container */}
-              <div style={{ 
-                flex: '1', 
+              <div style={{
+                flex: '1',
                 overflow: 'hidden',
                 backgroundColor: colors.background
               }}>
                 {chatComponent}
               </div>
             </div>
-            
+
             {/* Horizontal resize handle */}
             {maximizedPanel === 'none' && (
-              <div 
+              <div
                 style={{
                   position: 'absolute',
                   top: `${topRowHeight}%`,
@@ -1178,11 +1189,11 @@ export default function RepoViewer({ owner, repo, provider = 'github' }: RepoVie
                 onMouseDown={startVerticalResizing}
               />
             )}
-            
+
             {/* Bottom row - File viewer */}
-            <div style={{ 
-              height: maximizedPanel === 'fileViewer' ? '100%' : 
-                      maximizedPanel === 'chat' ? '0%' : `${bottomRowHeight}%`,
+            <div style={{
+              height: maximizedPanel === 'fileViewer' ? '100%' :
+                maximizedPanel === 'chat' ? '0%' : `${bottomRowHeight}%`,
               display: 'flex',
               flexDirection: 'column',
               position: 'relative',
@@ -1199,17 +1210,17 @@ export default function RepoViewer({ owner, repo, provider = 'github' }: RepoVie
                 justifyContent: 'space-between',
                 height: '40px'
               }}>
-                <div style={{ 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  gap: '8px', 
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
                   fontWeight: 'bold',
                   color: colors.text
                 }}>
                   <FaCode size={14} style={{ color: colors.secondaryText }} />
                   <span>{selectedFile || 'No file selected'}</span>
                 </div>
-                <button 
+                <button
                   className={styles.iconButton}
                   style={{
                     background: 'none',
@@ -1228,21 +1239,21 @@ export default function RepoViewer({ owner, repo, provider = 'github' }: RepoVie
                   {maximizedPanel === 'fileViewer' ? <FaCompress size={14} /> : <FaExpand size={14} />}
                 </button>
               </div>
-              
+
               {/* File content */}
-              <div style={{ 
-                flex: '1', 
+              <div style={{
+                flex: '1',
                 overflow: 'auto',
                 backgroundColor: colors.background
               }}>
                 {selectedFile ? (
                   fileViewerComponent
                 ) : (
-                  <div style={{ 
-                    display: 'flex', 
+                  <div style={{
+                    display: 'flex',
                     flexDirection: 'column',
-                    alignItems: 'center', 
-                    justifyContent: 'center', 
+                    alignItems: 'center',
+                    justifyContent: 'center',
                     height: '100%',
                     padding: '20px',
                     color: colors.secondaryText,

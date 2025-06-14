@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, Fragment } from 'react'
 import { useSession, signIn } from 'next-auth/react'
 import { Octokit } from '@octokit/rest'
-import { FaPaperPlane, FaGithub, FaChevronDown, FaChevronUp, FaFileCode, FaArrowDown, FaCloudUploadAlt, FaTrash } from 'react-icons/fa'
+import { FaPaperPlane, FaGithub, FaChevronDown, FaChevronUp, FaFileCode, FaArrowDown, FaCloudUploadAlt, FaTrash, FaThumbsUp, FaThumbsDown } from 'react-icons/fa'
 import ReactMarkdown from 'react-markdown'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { vscDarkPlus as syntaxDark, oneLight as syntaxLight } from 'react-syntax-highlighter/dist/cjs/styles/prism'
@@ -58,6 +58,8 @@ interface Message {
   content: string
   timestamp: number
   selectedFiles?: string[]
+  conversationId?: string
+  feedback?: 'like' | 'dislike' | null
 }
 
 interface FileWithContent {
@@ -162,6 +164,12 @@ export default function ChatBox({
   const [responseCache, setResponseCache] = useState<Record<string, any>>({})
   // Add state to track if messages have been loaded from the database
   const [messagesLoaded, setMessagesLoaded] = useState(false)
+  
+  // State for current conversation ID
+  const [currentConversationId, setCurrentConversationId] = useState<string | null>(null)
+  
+  // State for feedback loading
+  const [feedbackLoading, setFeedbackLoading] = useState<string | null>(null)
 
   // Add sample questions that users can click on
   const sampleQuestions = [
@@ -225,16 +233,12 @@ export default function ChatBox({
   // Add state for tooltip visibility
   const [showTooltip, setShowTooltip] = useState(false);
 
-  // Add new state for advanced chat
-  // const [showAdvancedOptions, setShowAdvancedOptions] = useState<boolean>(false);
-  // const [isUploading, setIsUploading] = useState<boolean>(false);
-  // const [uploadProgress, setUploadProgress] = useState<number>(0);
-
   // Reset messagesLoaded when owner or repo changes to force reloading messages
   useEffect(() => {
     console.log('Owner or repo changed, resetting messagesLoaded state');
     setMessagesLoaded(false);
     setLocalMessages([]);
+    setCurrentConversationId(null);
   }, [owner, repo, provider]);
 
   // Add database test on component mount
@@ -681,6 +685,58 @@ Please ensure:
     );
   };
 
+  // Function to handle feedback
+  const handleFeedback = async (messageId: string, feedback: 'like' | 'dislike') => {
+    if (!currentConversationId) {
+      console.error('No conversation ID available for feedback');
+      return;
+    }
+    
+    setFeedbackLoading(messageId);
+    
+    try {
+      // Update feedback via API
+      const response = await fetch('/api/feedback', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          conversationId: currentConversationId,
+          feedback
+        }),
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to update feedback');
+      }
+      
+      // Update local state
+      if (onAddMessage) {
+        // If using external state, we need to update the message
+        const updatedMessage = messages.find(m => m.id === messageId);
+        console.log(updatedMessage);        
+        if (updatedMessage) {
+          updatedMessage.feedback = feedback;
+          onAddMessage({ ...updatedMessage });
+        }
+      } else {
+        // Update local messages
+        setLocalMessages(prevMessages => 
+          prevMessages.map(msg => 
+            msg.id === messageId ? { ...msg, feedback } : msg
+          )
+        );
+      }
+      
+      console.log('Feedback updated successfully');
+    } catch (error) {
+      console.error('Error updating feedback:', error);
+    } finally {
+      setFeedbackLoading(null);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     console.log('handleSubmit called', 'Event type:', e.type);
     e.preventDefault();
@@ -744,27 +800,13 @@ Please ensure:
         ? `${input}\n\n[Files used for context: ${selectedFilesPaths.join(', ')}]` 
         : input,
       timestamp: Date.now(),
-      selectedFiles: selectedFilesPaths.length > 0 ? selectedFilesPaths : undefined
+      selectedFiles: selectedFilesPaths.length > 0 ? selectedFilesPaths : undefined,
+      conversationId: currentConversationId || undefined
     };
 
     console.log('Created user message:', formattedMessage);
     
-    // Save the user message to the database for persistence
-    try {
-      console.log('Saving user message to database...');
-      const userEmail = session?.user?.email;
-      const saveResult = await saveMessage(
-        formattedMessage,
-        owner,
-        repo,
-        provider || 'github',
-        userEmail
-      );
-      console.log('Save result:', saveResult);
-    } catch (saveError) {
-      console.error('Error saving message to database:', saveError);
-      // Continue with the chat even if saving fails
-    }
+    // Don't save the user message yet - we'll save the entire conversation once
     
     if (onAddMessage) {
       onAddMessage(formattedMessage);
@@ -814,19 +856,11 @@ Please ensure:
         taggedFiles: updatedRepoContext.taggedFiles || {},
         prioritizeSelectedFiles: selectedFilesPaths.length > 0,
         provider: provider || 'github',
-        repoPath: `${owner}/${repo}`
+        repoPath: `${owner}/${repo}`,
+        conversationId: currentConversationId // Include existing conversation ID if available
       };
       
       console.log('Sending request to /api/chat with repo info:', { owner, repo });
-      
-      // For quick development testing, you can uncomment this to simulate a response without API call
-      /*
-      // Simulated response
-      setIsTyping(true);
-      setTypingContent('');
-      simulateStreaming('This is a simulated response to your question.', generateId());
-      return;
-      */
       
       const response = await fetch('/api/chat', {
         method: 'POST',
@@ -875,23 +909,43 @@ Please ensure:
                 role: 'assistant',
                 content: accumulatedContentRef.current + filesContextNote,
                 timestamp: Date.now(),
-                selectedFiles: selectedFileNames.length > 0 ? selectedFileNames : undefined
+                selectedFiles: selectedFileNames.length > 0 ? selectedFileNames : undefined,
+                conversationId: currentConversationId || undefined
               };
               
-              // Save the assistant message to the database for persistence
+              // Log the complete conversation (user question + assistant response)
+              const conversationData = {
+                question: input,
+                response: accumulatedContentRef.current + filesContextNote,
+                owner,
+                repo,
+                provider,
+                action: currentConversationId ? 'update' : 'create',
+                conversationId: currentConversationId || undefined
+              };
+              
               try {
-                console.log('Saving assistant message to database...');
-                const userEmail = session?.user?.email;
-                const saveResult = await saveMessage(
-                  assistantMessage,
-                  owner,
-                  repo,
-                  provider || 'github',
-                  userEmail
-                );
-                console.log('Save result for assistant message:', saveResult);
-              } catch (saveError) {
-                console.error('Error saving assistant message to database:', saveError);
+                console.log('Logging conversation to database...');
+                const logResponse = await fetch('/api/log-chat', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify(conversationData),
+                });
+                
+                if (logResponse.ok) {
+                  const logResult = await logResponse.json();
+                  if (logResult.id && !currentConversationId) {
+                    setCurrentConversationId(logResult.id);
+                    assistantMessage.conversationId = logResult.id;
+                  }
+                  console.log('Conversation logged successfully');
+                } else {
+                  console.error('Failed to log conversation');
+                }
+              } catch (logError) {
+                console.error('Error logging conversation:', logError);
               }
               
               console.log('Adding assistant message after stream completion:', assistantMessage);
@@ -982,15 +1036,6 @@ Please ensure:
           }
         }
       }
-
-      // Log chat after completion
-      fetch('/api/log-chat', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ question: input, owner, repo, provider, call: "chatBox.tsx" }),
-      }).catch(err => console.error('Error logging chat:', err));
 
     } catch (error) {
       console.error('Error processing message:', error);
@@ -1182,7 +1227,8 @@ Please ensure:
       repo,
       readmeContent: updatedRepoContext.readme,
       taggedFiles: updatedRepoContext.taggedFiles || {},
-      prioritizeSelectedFiles: selectedFilesForContext.length > 0
+      prioritizeSelectedFiles: selectedFilesForContext.length > 0,
+      conversationId: currentConversationId
     };
     
     // Use server-side API endpoint
@@ -1237,23 +1283,39 @@ Please ensure:
                   role: 'assistant',
                   content: accumulatedContentRef.current + filesContextNote,
                   timestamp: Date.now(),
-                  selectedFiles: selectedFileNames.length > 0 ? selectedFileNames : undefined
+                  selectedFiles: selectedFileNames.length > 0 ? selectedFileNames : undefined,
+                  conversationId: currentConversationId || undefined
                 };
                 
-                // Save the assistant message to the database for persistence
+                // Log the conversation
+                const conversationData = {
+                  question: question,
+                  response: accumulatedContentRef.current + filesContextNote,
+                  owner,
+                  repo,
+                  provider,
+                  action: currentConversationId ? 'update' : 'create',
+                  conversationId: currentConversationId || undefined
+                };
+                
                 try {
-                  console.log('Saving assistant message to database...');
-                  const userEmail = session?.user?.email;
-                  const saveResult = await saveMessage(
-                    assistantMessage,
-                    owner,
-                    repo,
-                    provider || 'github',
-                    userEmail
-                  );
-                  console.log('Save result for assistant message:', saveResult);
-                } catch (saveError) {
-                  console.error('Error saving assistant message to database:', saveError);
+                  const logResponse = await fetch('/api/log-chat', {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(conversationData),
+                  });
+                  
+                  if (logResponse.ok) {
+                    const logResult = await logResponse.json();
+                    if (logResult.id && !currentConversationId) {
+                      setCurrentConversationId(logResult.id);
+                      assistantMessage.conversationId = logResult.id;
+                    }
+                  }
+                } catch (logError) {
+                  console.error('Error logging conversation:', logError);
                 }
                 
                 console.log('Adding assistant message for sample question:', assistantMessage);
@@ -1358,15 +1420,6 @@ Please ensure:
       console.error('Error fetching response for sample question:', error);
       handleStreamError();
     });
-    
-    // Log the question
-    fetch('/api/log-question', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ question }),
-    }).catch(err => console.error('Error logging question:', err));
   };
 
   // Helper component for safely rendering markdown in all contexts
@@ -1807,156 +1860,6 @@ Please ensure:
     }
   };
 
-  // Add new function to handle repository upload
-//   const uploadRepositoryContents = async () => {
-//     if (!isAuthenticated) {
-//       // Prompt user to sign in
-//       signIn('github');
-//       return;
-//     }
-    
-//     try {
-//       setIsUploading(true);
-//       setUploadProgress(0);
-      
-//       // Initialize Octokit with authentication token
-//       const octokit = new Octokit({
-//         auth: session?.accessToken,
-//       });
-      
-//       // Get repo details to verify access
-//       const repoResponse = await octokit.repos.get({
-//         owner,
-//         repo,
-//       });
-      
-//       // Get the default branch
-//       const defaultBranch = repoResponse.data.default_branch;
-      
-//       // Get the latest commit SHA
-//       const { data: refData } = await octokit.git.getRef({
-//         owner,
-//         repo,
-//         ref: `heads/${defaultBranch}`,
-//       });
-      
-//       const latestCommitSha = refData.object.sha;
-      
-//       // Get the full directory tree
-//       const { data: treeData } = await octokit.git.getTree({
-//         owner,
-//         repo,
-//         tree_sha: latestCommitSha,
-//         recursive: '1'
-//       });
-      
-//       // Only process files (not directories) and exclude large binary files
-//       const filesToUpload = treeData.tree.filter(item => 
-//         item.type === 'blob' && 
-//         item.path.match(/\.(md|txt|js|jsx|ts|tsx|json|css|scss|html|py|rb|java|c|cpp|h|php|go|rs|swift|kt)$/i)
-//       );
-      
-//       // Prepare the repository data object
-//       const repoData = {
-//         owner,
-//         repo,
-//         branch: defaultBranch,
-//         files: {}
-//       };
-      
-//       // Add initial message about starting the upload
-//       const initiatingMessage: Message = {
-//         id: generateId(),
-//         role: 'assistant',
-//         content: `Starting repository upload for ${owner}/${repo}. The files will be stored in \`User Repos/${owner}/${repo}\` folder with a metadata file containing the directory structure. A zip file will also be created and sent to the external API.`,
-//         timestamp: Date.now(),
-//       };
-      
-//       addMessage(initiatingMessage);
-      
-//       // Load content for each file
-//       for (let i = 0; i < filesToUpload.length; i++) {
-//         const file = filesToUpload[i];
-//         setUploadProgress(Math.floor((i / filesToUpload.length) * 100));
-        
-//         try {
-//           const { data: fileData } = await octokit.git.getBlob({
-//             owner,
-//             repo,
-//             file_sha: file.sha || '',
-//           });
-          
-//           // Decode base64 content
-//           const content = fileData.encoding === 'base64' 
-//             ? atob(fileData.content) 
-//             : fileData.content;
-            
-//           repoData.files[file.path] = content;
-//         } catch (error) {
-//           console.error(`Error fetching file ${file.path}:`, error);
-//           // Continue with other files even if one fails
-//         }
-//       }
-      
-//       // Upload the entire repository data to the backend
-//       const response = await fetch('/api/upload-repository', {
-//         method: 'POST',
-//         headers: {
-//           'Content-Type': 'application/json',
-//         },
-//         body: JSON.stringify(repoData),
-//       });
-      
-//       if (!response.ok) {
-//         throw new Error(`Server responded with ${response.status}`);
-//       }
-      
-//       // Get response data
-//       const responseData = await response.json();
-      
-//       // Add system message confirming upload with detailed information
-//       const systemMessage: Message = {
-//         id: generateId(),
-//         role: 'assistant',
-//         content: `✅ Repository contents for ${owner}/${repo} have been uploaded successfully.
-
-// **Storage Location:**
-// - Folder: \`User Repos/${owner}/${repo}\`
-// - Contains: All repository files and a metadata.json file
-// - Metadata: Includes directory structure and file information
-// - Zip File: \`${responseData.zipFile}\` has been created (using underscore instead of slash)
-
-// ${responseData.apiUploadStatus ? `**API Upload Status:** ${responseData.apiUploadStatus}` : '**API Upload:** The zip file has been sent to the external API endpoint.'}
-
-// The repository data is now organized by username and repository name, making it easier to navigate and analyze. 
-
-// **Note:** The zip filename uses underscores (${owner}_${repo}.zip) instead of slashes to be compatible with file systems. The original path (${owner}/${repo}) is preserved in the metadata and API request.`,
-//         timestamp: Date.now(),
-//       };
-      
-//       addMessage(systemMessage);
-//       // setShowAdvancedOptions(false);
-      
-//     } catch (error) {
-//       console.error('Error uploading repository:', error);
-      
-//       // Add error message to chat
-//       const errorMessage: Message = {
-//         id: generateId(),
-//         role: 'assistant',
-//         content: `Failed to upload repository contents: ${error.message}. Please try again later.`,
-//         timestamp: Date.now(),
-//       };
-      
-//       addMessage(errorMessage);
-//     } finally {
-//       setIsUploading(false);
-//       setUploadProgress(100);
-//       // Reset progress after showing 100% complete
-//       setTimeout(() => setUploadProgress(0), 1000);
-//     }
-//   };
-
   // Define a helper function to add messages
   const addMessage = (message: Message) => {
     console.log('Adding message', message.id)
@@ -2292,6 +2195,7 @@ Please ensure:
             setLocalMessages([]);
           }
           console.log('Chat history cleared successfully');
+          setCurrentConversationId(null);
         } else {
           console.error('Failed to clear chat history');
           setError('Failed to clear chat history');
@@ -2328,13 +2232,6 @@ Please ensure:
       }
     }
   }, [selectedFilesForContext]);
-  
-  // Reset messagesLoaded when owner or repo changes to force reloading messages
-  useEffect(() => {
-    console.log('Owner or repo changed, resetting messagesLoaded state');
-    setMessagesLoaded(false);
-    setLocalMessages([]);
-  }, [owner, repo, provider]);
 
   // Redesigned chat UI rendering
   return (
@@ -2648,9 +2545,60 @@ Please ensure:
                   fontSize: '0.65rem',
                   color: theme === 'dark' ? '#555555' : '#aaaaaa',
                   alignSelf: message.role === 'user' ? 'flex-end' : 'flex-start',
-                  marginTop: '6px'
+                  marginTop: '6px',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center'
                 }}>
-                  {new Date(message.timestamp).toLocaleTimeString([], {hour: 'numeric', minute: '2-digit'})}
+                  <span>{new Date(message.timestamp).toLocaleTimeString([], {hour: 'numeric', minute: '2-digit'})}</span>
+                  
+                  {/* Feedback buttons for assistant messages */}
+                  {message.role === 'assistant' && message.conversationId && (
+                    <div style={{
+                      display: 'flex',
+                      gap: '8px',
+                      marginLeft: '12px'
+                    }}>
+                      <button
+                        onClick={() => handleFeedback(message.id, 'like')}
+                        disabled={feedbackLoading === message.id}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          padding: '4px',
+                          cursor: feedbackLoading === message.id ? 'wait' : 'pointer',
+                          color: message.feedback === 'like' 
+                            ? (theme === 'dark' ? '#4ade80' : '#16a34a')
+                            : (theme === 'dark' ? '#666' : '#999'),
+                          display: 'flex',
+                          alignItems: 'center',
+                          transition: 'color 0.2s'
+                        }}
+                        title="Like this response"
+                      >
+                        <FaThumbsUp size={12} />
+                      </button>
+                      <button
+                        onClick={() => handleFeedback(message.id, 'dislike')}
+                        disabled={feedbackLoading === message.id}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          padding: '4px',
+                          cursor: feedbackLoading === message.id ? 'wait' : 'pointer',
+                          color: message.feedback === 'dislike'
+                            ? (theme === 'dark' ? '#f87171' : '#dc2626')
+                            : (theme === 'dark' ? '#666' : '#999'),
+                          display: 'flex',
+                          alignItems: 'center',
+                          transition: 'color 0.2s'
+                        }}
+                        title="Dislike this response"
+                      >
+                        <FaThumbsDown size={12} />
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             );
@@ -2747,102 +2695,6 @@ Please ensure:
       }}>
         {session ? (
           <>
-            {/* Advanced Chat Button */}
-            {/* <div style={{
-              display: 'flex',
-              justifyContent: 'flex-end',
-              marginBottom: '8px'
-            }}>
-              <button
-                onClick={() => setShowAdvancedOptions(!showAdvancedOptions)}
-                style={{
-                  padding: '6px 12px',
-                  fontSize: '0.8rem',
-                  borderRadius: '4px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '4px',
-                  backgroundColor: theme === 'dark' ? '#252525' : '#f0f0f0',
-                  color: theme === 'dark' ? '#bbb' : '#666',
-                  border: `1px solid ${theme === 'dark' ? '#444' : '#ddd'}`,
-                  cursor: 'pointer'
-                }}
-              >
-                Advanced Chat {showAdvancedOptions ? <FaChevronUp size={12} /> : <FaChevronDown size={12} />}
-              </button>
-            </div> */}
-            
-            {/* Advanced Options Panel */}
-            {/* {showAdvancedOptions && (
-              <div style={{
-                padding: '12px',
-                marginBottom: '12px',
-                backgroundColor: theme === 'dark' ? '#252525' : '#f5f5f5',
-                borderRadius: '4px',
-                border: `1px solid ${theme === 'dark' ? '#444' : '#ddd'}`
-              }}>
-                <h4 style={{
-                  fontSize: '0.9rem',
-                  fontWeight: '500',
-                  marginBottom: '8px',
-                  color: theme === 'dark' ? '#ddd' : '#444'
-                }}>Advanced Options</h4>
-                
-                <button
-                  onClick={uploadRepositoryContents}
-                  disabled={isUploading || loading}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    width: '100%',
-                    padding: '8px 12px',
-                    gap: '8px',
-                    backgroundColor: (isUploading || loading) 
-                      ? (theme === 'dark' ? '#444' : '#ccc') 
-                      : (theme === 'dark' ? '#2a4365' : '#4a6cf7'),
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '4px',
-                    fontSize: '0.85rem',
-                    cursor: (isUploading || loading) ? 'not-allowed' : 'pointer',
-                    marginBottom: '8px'
-                  }}
-                >
-                  <FaCloudUploadAlt size={16} />
-                  {isUploading ? 'Uploading Repository...' : 'Upload Entire Repository'}
-                </button>
-                
-                {isUploading && uploadProgress > 0 && (
-                  <div style={{
-                    width: '100%',
-                    height: '6px',
-                    backgroundColor: theme === 'dark' ? '#333' : '#e0e0e0',
-                    borderRadius: '3px',
-                    overflow: 'hidden',
-                    marginBottom: '10px'
-                  }}>
-                    <div 
-                      style={{
-                        height: '100%',
-                        backgroundColor: theme === 'dark' ? '#4a6cf7' : '#4a6cf7',
-                        width: `${uploadProgress}%`,
-                        transition: 'width 0.3s ease'
-                      }}
-                    ></div>
-                  </div>
-                )}
-                
-                <p style={{
-                  fontSize: '0.75rem',
-                  color: theme === 'dark' ? '#888' : '#777',
-                  marginTop: '8px'
-                }}>
-                  This will upload the entire repository content to enable deeper analysis and context awareness.
-                </p>
-              </div>
-            )} */}
-            
             <form 
               onSubmit={(e) => {
                 e.preventDefault();
@@ -3051,6 +2903,4 @@ Please ensure:
       `}</style>
     </div>
   );
-} 
-
-// Add database test on component mount
+}

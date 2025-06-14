@@ -9,9 +9,8 @@ export async function POST(request: NextRequest) {
 
     // Extract data from the request
     const body = await request.json()
-    const { question, conversationId, action = 'create' } = body
-    const questionLength = question?.length || 0
-    console.log("call:", body.call);
+    const { question, response, conversationId, action = 'create', owner, repo, provider = 'github' } = body
+    
     console.log("action:", action, "conversationId:", conversationId);
 
     // Get session
@@ -31,7 +30,8 @@ export async function POST(request: NextRequest) {
       bodyEmail: body.email,
       sessionEmail: session?.user?.email,
       anonymousId,
-      question: questionLength > 100 ? question.substring(0, 100) + '...' : question,
+      question: question ? question.substring(0, 100) + '...' : 'No question',
+      response: response ? response.substring(0, 100) + '...' : 'No response',
       repo: body.repo,
       owner: body.owner,
       combinedEmail: email,
@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if we have repo information
-    if (!body.owner || !body.repo) {
+    if (!owner || !repo) {
       console.warn('Missing owner or repo - cannot save chat to database')
       return NextResponse.json({ success: false, error: 'Missing repository information' })
     }
@@ -67,7 +67,7 @@ export async function POST(request: NextRequest) {
         // First verify the conversation belongs to this user
         const { data: existingConversation, error: verifyError } = await supabase
           .from('conversations')
-          .select('id, user_id')
+          .select('id, user_id, messages')
           .eq('id', conversationId)
           .single();
 
@@ -81,13 +81,43 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ success: false, error: 'Access denied' });
         }
 
-        // Update the existing conversation
+        // Get existing messages or initialize empty array
+        let messages = existingConversation.messages || [];
+        
+        // Ensure messages is an array
+        if (!Array.isArray(messages)) {
+          console.log('Messages is not an array, converting...');
+          messages = [];
+        }
+
+        // Create new message entries
+        const timestamp = Date.now();
+        const userMessage = {
+          id: `msg_${timestamp}_user`,
+          role: 'user',
+          content: question,
+          timestamp: timestamp
+        };
+
+        const assistantMessage = {
+          id: `msg_${timestamp}_assistant`,
+          role: 'assistant',
+          content: response || '',
+          timestamp: timestamp + 1
+        };
+
+        // Add both messages
+        messages.push(userMessage);
+        if (response) {
+          messages.push(assistantMessage);
+        }
+
+        // Update the conversation with new messages
         result = await supabase
           .from('conversations')
           .update({
             title: question.length > 50 ? `${question.substring(0, 47)}...` : question,
-            question: question,
-            content: body.response || null, // Store the AI response if provided
+            messages: messages,
             updated_at: new Date().toISOString()
           })
           .eq('id', conversationId)
@@ -109,14 +139,34 @@ export async function POST(request: NextRequest) {
         // CREATE NEW CONVERSATION (default behavior)
         console.log('Creating new conversation');
 
+        const timestamp = Date.now();
+        const messages = [];
+
+        // Add user message
+        messages.push({
+          id: `msg_${timestamp}_user`,
+          role: 'user',
+          content: question,
+          timestamp: timestamp
+        });
+
+        // Add assistant message if response is provided
+        if (response) {
+          messages.push({
+            id: `msg_${timestamp}_assistant`,
+            role: 'assistant',
+            content: response,
+            timestamp: timestamp + 1
+          });
+        }
+
         const newConversation = {
           user_id: email,
-          provider: body.provider || 'github',
-          owner: body.owner,
-          repo: body.repo,
-          // title: question.length > 50 ? `${question.substring(0, 47)}...` : question,
-          question: question,
-          content: body.response || null,
+          provider: provider,
+          owner: owner,
+          repo: repo,
+          title: question.length > 50 ? `${question.substring(0, 47)}...` : question,
+          messages: messages,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         };
@@ -132,10 +182,7 @@ export async function POST(request: NextRequest) {
         }
 
         const newConversationId = result.data?.[0]?.id;
-        console.log('Successfully created new conversations 135:', newConversationId);
-
-        // Remove the duplicate AI response insertion
-        // No second insert needed - everything is in one row
+        console.log('Successfully created new conversation:', newConversationId);
 
         return NextResponse.json({
           success: true,
@@ -177,7 +224,7 @@ export async function GET(request: NextRequest) {
     // Get conversation history for this repository
     const { data: conversations, error } = await supabase
       .from('conversations')
-      .select('id, title, question, content, role, created_at, updated_at')
+      .select('id, title, messages, created_at, updated_at')
       .eq('user_id', email)
       .eq('provider', provider)
       .eq('owner', owner)

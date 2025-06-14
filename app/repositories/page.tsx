@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import {
   FaSearch,
@@ -14,7 +14,6 @@ import {
   FaCircle,
   FaStar,
   FaCodeBranch,
-  FaSpinner,
 } from 'react-icons/fa'
 import Link from 'next/link'
 import { Octokit } from 'octokit'
@@ -23,7 +22,7 @@ import GitHubSignInButton from '../components/GitHubSignInButton'
 import GitLabSignInButton from '../components/GitLabSignInButton'
 import useProviderTokens from '../hooks/useProviderTokens'
 import LoadingState from '../components/LoadingState'
-import { checkRepositoryUploadStatus, uploadRepositoryContents } from '../lib/repository-upload'
+import { checkRepositoryUploadStatus } from '../lib/repository-upload'
 
 // Repository interface for GitHub
 interface Repository {
@@ -59,14 +58,6 @@ interface GenericRepository {
 
 type RepoProvider = 'github' | 'gitlab' | 'azure' | 'bitbucket'
 
-// Upload progress interface
-interface UploadProgress {
-  isUploading: boolean
-  progress: number
-  error?: string
-  message?: string
-}
-
 export default function RepositoriesPage() {
   const { data: session, status } = useSession()
   const {
@@ -92,13 +83,6 @@ export default function RepositoriesPage() {
   const [lastTokenCheck, setLastTokenCheck] = useState<number>(0)
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
   const [uploadStatuses, setUploadStatuses] = useState<Record<string, boolean>>({})
-  
-  // New states for auto-upload functionality
-  const [uploadProgress, setUploadProgress] = useState<Record<string, UploadProgress>>({})
-  const [isAutoUploading, setIsAutoUploading] = useState(false)
-  const uploadQueueRef = useRef<GenericRepository[]>([])
-  const currentUploadRef = useRef<string | null>(null)
-  const [autoUploadEnabled, setAutoUploadEnabled] = useState(false) // Default to false to avoid auth issues
 
   // Cache repositories to avoid unnecessary refetching
   const REPO_CACHE_DURATION = 5 * 60 * 1000; // 5 minutes in milliseconds
@@ -188,154 +172,7 @@ export default function RepositoriesPage() {
 
   const connectedProviders = getConnectedProviders();
 
-  // Auto-upload functionality
-  const startAutoUpload = async () => {
-    if (isAutoUploading || uploadQueueRef.current.length === 0) {
-      console.log('Auto-upload skipped:', { isAutoUploading, queueLength: uploadQueueRef.current.length });
-      return;
-    }
-    
-    console.log('Starting auto-upload for', uploadQueueRef.current.length, 'repositories');
-    setIsAutoUploading(true);
-    
-    while (uploadQueueRef.current.length > 0) {
-      const repo = uploadQueueRef.current.shift();
-      if (!repo) continue;
-      
-      const uploadKey = `${repo.provider}:${repo.owner}/${repo.name}`;
-      currentUploadRef.current = uploadKey;
-      
-      // Skip if already uploaded
-      if (uploadStatuses[uploadKey]) continue;
-      
-      // Update progress state to show uploading has started
-      setUploadProgress(prev => ({
-        ...prev,
-        [uploadKey]: {
-          isUploading: true,
-          progress: 0,
-          message: 'Starting upload...'
-        }
-      }));
-      
-      try {
-        // Get the appropriate access token
-        let accessToken: string | null = null;
-        
-        if (repo.provider === 'github') {
-          // Try multiple sources for GitHub token
-          accessToken = getGitHubToken() || 
-                       session?.accessToken || 
-                       (session as any)?.token ||
-                       localStorage.getItem('github_token');
-                       
-          console.log('GitHub token obtained:', !!accessToken, 'Length:', accessToken?.length);
-        } else if (repo.provider === 'gitlab') {
-          accessToken = getGitLabToken();
-          console.log('GitLab token obtained:', !!accessToken);
-        }
-        
-        if (!accessToken) {
-          throw new Error(`No access token available for ${repo.provider}`);
-        }
-        
-        // Upload the repository
-        console.log(`Uploading ${repo.owner}/${repo.name} with ${repo.provider} provider`);
-        console.log('Token available:', !!accessToken, 'Token length:', accessToken.length);
-        
-        const result = await uploadRepositoryContents(
-          repo.owner,
-          repo.name,
-          repo.provider,
-          accessToken,
-          (progress) => {
-            // Update progress
-            setUploadProgress(prev => ({
-              ...prev,
-              [uploadKey]: {
-                isUploading: true,
-                progress,
-                message: `Uploading... ${progress}%`
-              }
-            }));
-          },
-          (message) => {
-            // Update message
-            setUploadProgress(prev => ({
-              ...prev,
-              [uploadKey]: {
-                ...prev[uploadKey],
-                message
-              }
-            }));
-          }
-        );
-        
-        if (result.success) {
-          // Mark as uploaded
-          setUploadStatuses(prev => ({
-            ...prev,
-            [uploadKey]: true
-          }));
-          
-          // Update progress to complete
-          setUploadProgress(prev => ({
-            ...prev,
-            [uploadKey]: {
-              isUploading: false,
-              progress: 100,
-              message: 'Upload complete!'
-            }
-          }));
-          
-          // Clear progress after 3 seconds
-          setTimeout(() => {
-            setUploadProgress(prev => {
-              const newProgress = { ...prev };
-              delete newProgress[uploadKey];
-              return newProgress;
-            });
-          }, 3000);
-        } else {
-          throw new Error(result.error || 'Upload failed');
-        }
-      } catch (error: any) {
-        console.error(`Error uploading ${repo.name}:`, error);
-        
-        // Update progress to show error
-        setUploadProgress(prev => ({
-          ...prev,
-          [uploadKey]: {
-            isUploading: false,
-            progress: 0,
-            error: error.message || 'Upload failed',
-            message: error.message.includes('authentication') ? 'Authentication error' : 'Upload failed'
-          }
-        }));
-        
-        // Clear error after 5 seconds
-        setTimeout(() => {
-          setUploadProgress(prev => {
-            const newProgress = { ...prev };
-            delete newProgress[uploadKey];
-            return newProgress;
-          });
-        }, 5000);
-        
-        // If it's an authentication error, stop the queue to prevent multiple auth failures
-        if (error.message.includes('authentication') || error.message.includes('Bad credentials')) {
-          console.log('Authentication error detected, stopping auto-upload queue');
-          uploadQueueRef.current = [];
-          break;
-        }
-      }
-    }
-    
-    currentUploadRef.current = null;
-    setIsAutoUploading(false);
-  };
-
-  // Effect to check upload statuses (separate from auto-upload)
+  // Add effect to check upload status for repositories
   useEffect(() => {
     const checkUploadStatuses = async () => {
       const repos = getGenericRepositories()
@@ -351,58 +188,11 @@ export default function RepositoriesPage() {
       setUploadStatuses(statuses)
     }
 
-    // Check statuses when we have repositories
+    // Only check when we have repositories
     if (filteredRepos.length > 0) {
       checkUploadStatuses()
     }
-  }, [githubRepositories, gitlabRepositories, activeProvider, filteredRepos.length])
-
-  // Add effect to check upload status and start auto-upload
-  useEffect(() => {
-    const checkAndQueueUploads = async () => {
-      // Ensure we have a valid session before attempting uploads
-      if (!session || status !== 'authenticated') {
-        console.log('Skipping auto-upload: no authenticated session');
-        return;
-      }
-      
-      // Skip if auto-upload is disabled
-      if (!autoUploadEnabled) {
-        console.log('Auto-upload is disabled');
-        return;
-      }
-      
-      const repos = getGenericRepositories()
-      const statuses: Record<string, boolean> = {}
-      const reposToUpload: GenericRepository[] = []
-
-      // Check upload status for each repository
-      for (const repo of repos) {
-        const key = `${repo.provider}:${repo.owner}/${repo.name}`
-        const status = await checkRepositoryUploadStatus(repo.owner, repo.name, repo.provider)
-        statuses[key] = status.uploaded
-        
-        // Add to upload queue if not uploaded
-        if (!status.uploaded) {
-          reposToUpload.push(repo)
-        }
-      }
-
-      setUploadStatuses(statuses)
-      
-      // Queue repositories for upload only if auto-upload is enabled
-      if (reposToUpload.length > 0 && autoUploadEnabled) {
-        console.log(`Found ${reposToUpload.length} repositories to upload`)
-        uploadQueueRef.current = reposToUpload
-        startAutoUpload()
-      }
-    }
-
-    // Only check when we have repositories and are not already uploading
-    if (filteredRepos.length > 0 && !isAutoUploading) {
-      checkAndQueueUploads()
-    }
-  }, [githubRepositories, gitlabRepositories, activeProvider, session, status, autoUploadEnabled])
+  }, [githubRepositories, gitlabRepositories, activeProvider])
 
   // Add a periodic token check for GitLab to proactively handle expiration
   useEffect(() => {
@@ -610,65 +400,24 @@ export default function RepositoriesPage() {
 
   // Make a simpler version for GitHub too
   const getGitHubToken = (): string | null => {
-    console.log('Getting GitHub token, session:', {
-      hasSession: !!session,
-      sessionProvider: (session as any)?.provider,
-      hasAccessToken: !!(session as any)?.accessToken,
-      hasUserToken: !!(session as any)?.user?.accessToken,
-    });
-    
-    // First check session (most reliable)
-    const typedSession = session as any;
-    
-    // GitHub token is usually in session.accessToken with NextAuth
-    if (typedSession?.accessToken) {
-      console.log('Found GitHub token in session.accessToken');
-      return typedSession.accessToken;
-    }
-    
-    // Sometimes it's in session.token
-    if (typedSession?.token) {
-      console.log('Found GitHub token in session.token');
-      return typedSession.token;
-    }
-    
-    // Check if the session has user with accessToken
-    if (typedSession?.user?.accessToken) {
-      console.log('Found GitHub token in session.user.accessToken');
-      return typedSession.user.accessToken;
-    }
-    
-    // For GitHub provider specifically
-    if (typedSession?.provider === 'github') {
-      // Check all possible locations
-      const possibleToken = typedSession.accessToken || 
-                          typedSession.githubAccessToken || 
-                          typedSession.access_token ||
-                          typedSession.user?.accessToken;
-      if (possibleToken) {
-        console.log('Found GitHub token in session for github provider');
-        return possibleToken;
-      }
-    }
-    
-    // Check our tokens state
-    if (tokens && tokens.github && tokens.github.token) {
-      console.log('Found GitHub token in tokens state');
-      return tokens.github.token;
-    }
-    
-    // Finally check localStorage (least reliable)
+    // First check localStorage (simplest approach)
     if (typeof window !== 'undefined') {
       const localToken = localStorage.getItem('token_backup_github') ||
-        localStorage.getItem('github_token') ||
-        localStorage.getItem('gh_token');
-      if (localToken) {
-        console.log('Found GitHub token in localStorage');
-        return localToken;
-      }
+        localStorage.getItem('github_token');
+      if (localToken) return localToken;
     }
 
-    console.log('No GitHub token found in any location');
+    // Check our tokens state
+    if (tokens && tokens.github && tokens.github.token) {
+      return tokens.github.token;
+    }
+
+    // Check session data with proper type casting
+    const typedSession = session as any;
+    if (typedSession?.provider === 'github' && typedSession.accessToken) {
+      return typedSession.accessToken;
+    }
+
     return null;
   };
 
@@ -768,11 +517,9 @@ export default function RepositoriesPage() {
         const octokit = new Octokit({
           auth: accessToken,
           request: {
-            timeout: 30000, // Add timeout
-          },
-          retry: {
-            enabled: true,
-            retries: 3,
+            headers: {
+              authorization: `token ${accessToken}`
+            }
           }
         })
 
@@ -811,11 +558,9 @@ export default function RepositoriesPage() {
               const retryOctokit = new Octokit({
                 auth: freshToken,
                 request: {
-                  timeout: 30000,
-                },
-                retry: {
-                  enabled: true,
-                  retries: 3,
+                  headers: {
+                    authorization: `token ${freshToken}`
+                  }
                 }
               });
 
@@ -1229,8 +974,8 @@ export default function RepositoriesPage() {
           </div>
         </div>
 
-        {/* Search Box and Auto-upload Toggle */}
-        <div className="mb-6 max-w-lg mx-auto space-y-4">
+        {/* Search Box */}
+        <div className="mb-6 max-w-lg mx-auto">
           <div className="relative">
             <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
               <FaSearch className="h-4 w-4 text-gray-400" />
@@ -1242,24 +987,6 @@ export default function RepositoriesPage() {
               placeholder={`Search ${getProviderName(activeProvider)} repositories...`}
               className="w-full pl-10 pr-4 py-2 text-sm rounded-full border border-gray-200 bg-gray-50"
             />
-          </div>
-          
-          {/* Auto-upload toggle */}
-          <div className="flex items-center justify-center gap-2 text-sm">
-            <label className="flex items-center cursor-pointer">
-              <input
-                type="checkbox"
-                checked={autoUploadEnabled}
-                onChange={(e) => setAutoUploadEnabled(e.target.checked)}
-                className="mr-2"
-              />
-              <span className="text-gray-600 dark:text-gray-400">
-                Enable automatic repository upload
-              </span>
-            </label>
-            <span className="text-xs text-gray-500" title="When enabled, repositories will be uploaded automatically">
-              ⓘ
-            </span>
           </div>
         </div>
 
@@ -1310,7 +1037,6 @@ export default function RepositoriesPage() {
             {filteredRepos.map((repo) => {
               const uploadKey = `${repo.provider}:${repo.owner}/${repo.name}`
               const isUploaded = uploadStatuses[uploadKey] || false
-              const progress = uploadProgress[uploadKey]
 
               return (
                 <div key={`${repo.provider}-${repo.id}`} className="w-full md:w-1/2 px-3 mb-6">
@@ -1334,50 +1060,15 @@ export default function RepositoriesPage() {
                           </div>
                           {/* Upload status indicator */}
                           <div className="ml-2 flex-shrink-0">
-                            {progress && progress.isUploading ? (
-                              <div className="flex items-center text-blue-500 text-xs">
-                                <FaSpinner className="animate-spin mr-1" size={12} />
-                                <span>{progress.progress}%</span>
-                              </div>
-                            ) : progress && progress.error ? (
-                              <div className="flex items-center gap-2">
-                                <div className="flex items-center text-red-500 text-xs" title={progress.error}>
-                                  <span>❌ Failed</span>
-                                </div>
-                                <button
-                                  onClick={(e) => {
-                                    e.preventDefault();
-                                    e.stopPropagation();
-                                    manualUploadRepository(repo);
-                                  }}
-                                  className="text-xs px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600"
-                                  title="Retry upload"
-                                >
-                                  Retry
-                                </button>
-                              </div>
-                            ) : isUploaded ? (
+                            {isUploaded ? (
                               <div className="flex items-center text-green-500 text-xs" title="Repository uploaded">
                                 <FaCheck size={12} className="mr-1" />
                                 <span>Uploaded</span>
                               </div>
                             ) : (
-                              <div className="flex items-center gap-2">
-                                <div className="flex items-center text-gray-400 text-xs" title="Repository not uploaded">
-                                  <FaCloudUploadAlt size={12} className="mr-1" />
-                                  <span>{autoUploadEnabled ? 'Queued' : 'Not uploaded'}</span>
-                                </div>
-                                <button
-                                  onClick={(e) => {
-                                    e.preventDefault();
-                                    e.stopPropagation();
-                                    manualUploadRepository(repo);
-                                  }}
-                                  className="text-xs px-2 py-1 bg-gray-500 text-white rounded hover:bg-gray-600"
-                                  title="Upload now"
-                                >
-                                  Upload
-                                </button>
+                              <div className="flex items-center text-gray-400 text-xs" title="Repository will be uploaded on first access">
+                                <FaCloudUploadAlt size={12} className="mr-1" />
+                                <span>Not uploaded</span>
                               </div>
                             )}
                           </div>
@@ -1387,21 +1078,6 @@ export default function RepositoriesPage() {
                           <p className="mt-2 text-sm text-gray-600 dark:text-gray-400 line-clamp-2">
                             {repo.description}
                           </p>
-                        )}
-
-                        {/* Progress bar for uploading repositories */}
-                        {progress && progress.isUploading && (
-                          <div className="mt-3">
-                            <div className="w-full bg-gray-200 rounded-full h-2">
-                              <div 
-                                className="bg-blue-500 h-2 rounded-full transition-all duration-300"
-                                style={{ width: `${progress.progress}%` }}
-                              />
-                            </div>
-                            {progress.message && (
-                              <p className="text-xs text-gray-500 mt-1">{progress.message}</p>
-                            )}
-                          </div>
                         )}
 
                         <div className="flex justify-between mt-4 text-sm text-gray-500">
